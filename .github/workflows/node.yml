@@ -55,3 +55,25 @@ jobs:
       - run: npm run build
       - name: Run tests
         run: npm test --if-present
+
+  generated-clients:
+    name: Generated clients match src
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - name: Install client package dependencies
+        run: pnpm --filter "./packages/*" install
+      - name: Rebuild client packages
+        run: pnpm --filter "./packages/*" run build
+      - name: Verify committed dist matches a fresh build
+        run: |
+          if ! git diff --exit-code -- 'packages/*/dist'; then
+            echo "::error::Committed packages/*/dist is out of date. Run 'pnpm --filter \"./packages/*\" run build' and commit the result."
+            exit 1
+          fi
