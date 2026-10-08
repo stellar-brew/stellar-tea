@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
 
-import { buildLineage, deriveFusionColorway, deriveFusionStats } from "@/lib/nft/fusion-helpers";
+import {
+  averageColors,
+  buildLineage,
+  deriveFusionColorway,
+  deriveFusionStats,
+  extractPalette,
+  hexToRgb,
+  rgbToHex,
+} from "@/lib/nft/fusion-helpers";
 import {
   buildTeaMetadata,
   type TeaColorway,
@@ -129,3 +137,73 @@ describe("fusion helpers", () => {
 });
 
 
+
+
+describe("extractPalette", () => {
+  it("returns the single colour for a solid colorway", () => {
+    expect(extractPalette({ mode: "solid", color: "#ff0000" })).toEqual(["#ff0000"]);
+  });
+
+  it("returns every stop colour for a linear gradient", () => {
+    const colorway: TeaColorway = {
+      mode: "linear-gradient",
+      angleDeg: 120,
+      stops: [
+        { offset: 0, color: "#ff0000" },
+        { offset: 0.5, color: "#00ff00" },
+        { offset: 1, color: "#0000ff" },
+      ],
+    };
+
+    expect(extractPalette(colorway)).toEqual(["#ff0000", "#00ff00", "#0000ff"]);
+  });
+
+  it("returns every stop colour for a radial gradient", () => {
+    const colorway: TeaColorway = {
+      mode: "radial-gradient",
+      stops: [
+        { offset: 0, color: "#112233" },
+        { offset: 1, color: "#445566" },
+      ],
+    };
+
+    expect(extractPalette(colorway)).toEqual(["#112233", "#445566"]);
+  });
+});
+
+describe("averageColors", () => {
+  it("returns white for an empty palette", () => {
+    expect(averageColors([])).toBe("#ffffff");
+  });
+
+  it("returns a single colour unchanged", () => {
+    expect(averageColors(["#3366cc"])).toBe("#3366cc");
+  });
+
+  it("averages two colours channel-by-channel, rounding half up", () => {
+    expect(averageColors(["#000000", "#ffffff"])).toBe("#808080");
+    expect(averageColors(["#ff0000", "#0000ff"])).toBe("#800080");
+  });
+});
+
+describe("hexToRgb / rgbToHex", () => {
+  it("converts a hex colour to channel values", () => {
+    expect(hexToRgb("#ff8000")).toEqual({ r: 255, g: 128, b: 0 });
+    expect(hexToRgb("ff8000")).toEqual({ r: 255, g: 128, b: 0 });
+  });
+
+  it("round-trips a colour through hexToRgb and rgbToHex", () => {
+    expect(rgbToHex(hexToRgb("#123456"))).toBe("#123456");
+  });
+
+  it("clamps out-of-range channel values", () => {
+    expect(rgbToHex({ r: -10, g: 300, b: 128 })).toBe("#00ff80");
+  });
+
+  it("documents the current malformed-hex behaviour (collapses to black)", () => {
+    // `Number.parseInt("zzz", 16)` is NaN and every NaN bit-shift is 0, so a
+    // malformed hex currently resolves to black rather than throwing. Pinned
+    // here so a future validation fix intentionally breaks this test.
+    expect(hexToRgb("#zzz")).toEqual({ r: 0, g: 0, b: 0 });
+  });
+});
