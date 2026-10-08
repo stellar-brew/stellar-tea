@@ -429,12 +429,18 @@ Tests cover color blending, lineage math, and metadata helpers.
 
 ## **Development Commands**
 
+Run these from the repository root. The root `package.json` only declares
+`install:contracts` and `format`, so the app commands are delegated to the
+`frontend` workspace with pnpm's `--filter` flag:
+
 ```bash
-npm run dev       # Start dev server
-npm run build     # Production build
-npm run start     # Start production server
-npm run lint      # Run ESLint
-npm test          # Run tests
+pnpm install:contracts         # install & build the generated contract clients
+pnpm --filter frontend dev     # Next.js dev server at http://localhost:3000
+pnpm --filter frontend build   # production build of the frontend
+pnpm --filter frontend start   # serve the production build
+pnpm --filter frontend lint    # ESLint for the frontend
+pnpm --filter frontend test    # Vitest suite for the frontend
+pnpm format                    # Prettier over the repository
 ```
 
 ---
