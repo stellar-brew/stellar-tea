@@ -55,3 +55,12 @@ jobs:
       - run: npm run build
       - name: Run tests
         run: npm test --if-present
+
+  verify-clients:
+    name: Verify workspace client deps
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Verify every workspace:* dependency resolves
+        run: node .github/scripts/verify-workspace-deps.mjs
