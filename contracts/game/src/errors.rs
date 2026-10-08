@@ -13,4 +13,5 @@ pub enum GameError {
     NotOwner = 8,
     Expired = 9,
     NotReady = 10,
+    AlreadyJoined = 12,
 }

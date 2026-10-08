@@ -787,6 +787,11 @@ impl StellarTeaGame {
         if stake < event.stake {
             return Err(GameError::InsufficientPayment);
         }
+        for participant in event.participants.iter() {
+            if participant == player {
+                return Err(GameError::AlreadyJoined);
+            }
+        }
 
         util::transfer_from(
             &env,
@@ -884,5 +889,185 @@ impl StellarTeaGame {
         env.events()
             .publish(("event_created",), (event_id, stake, deadline));
         Ok(())
+    }
+}
+
+
+#[cfg(test)]
+mod join_event_tests {
+    extern crate std;
+
+    use super::*;
+    use crate::errors::GameError;
+    use crate::tea::{TeaMetadata, TeaStats};
+    use soroban_sdk::{contract, contractimpl, symbol_short, testutils::Address as _, Address, Env, String, Vec};
+
+    // Minimal fungible token implementing the subset of the SEP-41 surface the
+    // game contract calls: mint / balance / transfer / transfer_from / burn.
+    #[contract]
+    struct MockToken;
+
+    #[contractimpl]
+    impl MockToken {
+        pub fn mint(env: Env, to: Address, amount: i128) {
+            let key = (symbol_short!("bal"), to);
+            let current: i128 = env.storage().persistent().get(&key).unwrap_or(0);
+            env.storage().persistent().set(&key, &(current + amount));
+        }
+
+        pub fn balance(env: Env, id: Address) -> i128 {
+            env.storage()
+                .persistent()
+                .get(&(symbol_short!("bal"), id))
+                .unwrap_or(0)
+        }
+
+        pub fn transfer(_env: Env, _from: Address, _to: Address, _amount: i128) {}
+
+        pub fn transfer_from(
+            _env: Env,
+            _spender: Address,
+            _from: Address,
+            _to: Address,
+            _amount: i128,
+        ) {
+        }
+
+        pub fn burn(_env: Env, _from: Address, _amount: i128) {}
+    }
+
+    // Minimal tea NFT implementing the surface the game contract calls through
+    // `util`: mint / owner / get_metadata / set_metadata / transfer / burn_token.
+    #[contract]
+    struct MockNft;
+
+    #[contractimpl]
+    impl MockNft {
+        pub fn mint(env: Env, _caller: Address, to: Address, metadata: TeaMetadata) -> u64 {
+            let mut next: u64 = env
+                .storage()
+                .persistent()
+                .get(&symbol_short!("next"))
+                .unwrap_or(0);
+            next += 1;
+            env.storage().persistent().set(&symbol_short!("next"), &next);
+            env.storage()
+                .persistent()
+                .set(&(symbol_short!("own"), next), &to);
+            env.storage()
+                .persistent()
+                .set(&(symbol_short!("meta"), next), &metadata);
+            next
+        }
+
+        pub fn owner(env: Env, token_id: u64) -> Address {
+            env.storage()
+                .persistent()
+                .get(&(symbol_short!("own"), token_id))
+                .expect("owner")
+        }
+
+        pub fn get_metadata(env: Env, token_id: u64) -> TeaMetadata {
+            env.storage()
+                .persistent()
+                .get(&(symbol_short!("meta"), token_id))
+                .expect("metadata")
+        }
+
+        pub fn set_metadata(env: Env, _caller: Address, token_id: u64, metadata: TeaMetadata) {
+            env.storage()
+                .persistent()
+                .set(&(symbol_short!("meta"), token_id), &metadata);
+        }
+
+        pub fn transfer(env: Env, _from: Address, to: Address, token_id: u64) {
+            env.storage()
+                .persistent()
+                .set(&(symbol_short!("own"), token_id), &to);
+        }
+
+        pub fn burn_token(env: Env, _caller: Address, _owner: Address, token_id: u64) {
+            env.storage()
+                .persistent()
+                .remove(&(symbol_short!("own"), token_id));
+            env.storage()
+                .persistent()
+                .remove(&(symbol_short!("meta"), token_id));
+        }
+    }
+
+    fn deploy_game(
+        env: &Env,
+    ) -> (
+        StellarTeaGameClient<'_>,
+        Address,
+        Address,
+        Address,
+        Address,
+        Address,
+    ) {
+        let admin = Address::generate(env);
+        let treasury = Address::generate(env);
+        let balls = env.register(MockToken, ());
+        let stars = env.register(MockToken, ());
+        let nft = env.register(MockNft, ());
+        let id = env.register(
+            StellarTeaGame,
+            (
+                admin.clone(),
+                treasury.clone(),
+                balls.clone(),
+                stars.clone(),
+                nft.clone(),
+                None::<Address>,
+            ),
+        );
+        (StellarTeaGameClient::new(env, &id), admin, balls, stars, nft, id)
+    }
+
+    fn tea_metadata(env: &Env, rarity: u32, level: u32) -> TeaMetadata {
+        TeaMetadata {
+            display_name: String::from_str(env, "Test Tea"),
+            flavor_profile: String::from_str(env, "citrus"),
+            rarity,
+            level,
+            infusion: String::from_str(env, "base"),
+            stats: TeaStats {
+                sweetness: 1,
+                body: 2,
+                caffeine: 3,
+            },
+            lineage: Vec::new(env),
+            image_uri: String::from_str(env, "ipfs://test"),
+        }
+    }
+
+    #[test]
+    fn join_event_rejects_duplicate_participation() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let (client, _admin, _balls, _stars, _nft, game_id) = deploy_game(&env);
+
+        let organizer = Address::generate(&env);
+        client.create_event(
+            &organizer,
+            &1u32,
+            &100i128,
+            &(env.ledger().timestamp() + 1_000),
+        );
+
+        let player = Address::generate(&env);
+        client.join_event(&player, &1u32, &100i128);
+
+        let second = client.try_join_event(&player, &1u32, &100i128);
+        match second {
+            Err(Ok(GameError::AlreadyJoined)) => {}
+            _ => panic!("expected AlreadyJoined"),
+        }
+
+        let participants = env.as_contract(&game_id, || {
+            crate::events::get(&env, 1).unwrap().participants.len()
+        });
+        assert_eq!(participants, 1);
     }
 }
