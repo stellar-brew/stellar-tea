@@ -374,35 +374,6 @@ export interface Client {
     },
   ) => Promise<AssembledTransaction<Result<void>>>;
   /**
-   * Construct and simulate a mix_tea transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
-   */
-  mix_tea: (
-    {
-      owner,
-      recipe_id,
-      balls,
-      stars,
-    }: {
-      owner: string;
-      recipe_id: u32;
-      balls: i128;
-      stars: Option<i128>;
-    },
-    options?: {
-      /**
-       * The fee to pay for the transaction. Default: BASE_FEE
-       */
-      fee?: number;
-      /**
-       * The maximum amount of time to wait for the transaction to complete. Default: DEFAULT_TIMEOUT
-       */
-      timeoutInSeconds?: number;
-      /**
-       * Whether to automatically simulate the transaction when constructing the AssembledTransaction. Default: true
-       */
-      simulate?: boolean;
-    },
-  ) => Promise<AssembledTransaction<Result<u64>>>;
   /**
    * Construct and simulate a upgrade_tea transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
    */
@@ -685,11 +656,6 @@ export declare class Client extends ContractClient {
       json: string,
     ) => AssembledTransaction<
       Result<void, import("@stellar/stellar-sdk/contract").ErrorMessage>
-    >;
-    mix_tea: (
-      json: string,
-    ) => AssembledTransaction<
-      Result<bigint, import("@stellar/stellar-sdk/contract").ErrorMessage>
     >;
     upgrade_tea: (
       json: string,

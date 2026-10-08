@@ -89,7 +89,6 @@ export class Client extends ContractClient {
     create_mix_offer: this.txFromJSON,
     accept_mix_offer: this.txFromJSON,
     cancel_mix_offer: this.txFromJSON,
-    mix_tea: this.txFromJSON,
     upgrade_tea: this.txFromJSON,
     list_nft: this.txFromJSON,
     delist_nft: this.txFromJSON,

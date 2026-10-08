@@ -346,33 +346,6 @@ export interface Client {
   ) => Promise<AssembledTransaction<Result<void>>>;
 
   /**
-   * Construct and simulate a mix_tea transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
-   */
-  mix_tea: (
-    {
-      owner,
-      recipe_id,
-      balls,
-      stars,
-    }: { owner: string; recipe_id: u32; balls: i128; stars: Option<i128> },
-    options?: {
-      /**
-       * The fee to pay for the transaction. Default: BASE_FEE
-       */
-      fee?: number;
-
-      /**
-       * The maximum amount of time to wait for the transaction to complete. Default: DEFAULT_TIMEOUT
-       */
-      timeoutInSeconds?: number;
-
-      /**
-       * Whether to automatically simulate the transaction when constructing the AssembledTransaction. Default: true
-       */
-      simulate?: boolean;
-    },
-  ) => Promise<AssembledTransaction<Result<u64>>>;
-
   /**
    * Construct and simulate a upgrade_tea transaction. Returns an `AssembledTransaction` object which will have a `result` field containing the result of the simulation. If this transaction changes contract state, you will need to call `signAndSend()` on the returned object.
    */
@@ -638,7 +611,6 @@ export class Client extends ContractClient {
         "AAAAAAAAAAAAAAAQY3JlYXRlX21peF9vZmZlcgAAAAgAAAAAAAAABW93bmVyAAAAAAAAEwAAAAAAAAAJcmVjaXBlX2lkAAAAAAAABAAAAAAAAAAKdG9rZW5fYV9pZAAAAAAABgAAAAAAAAAPZGVzaXJlZF9wcm9maWxlAAAAABAAAAAAAAAACG1pbl9yYW5rAAAABAAAAAAAAAAJZmVlX2JhbGxzAAAAAAAACwAAAAAAAAAJZmVlX3N0YXJzAAAAAAAACwAAAAAAAAAIZGVhZGxpbmUAAAAGAAAAAQAAA+kAAAAGAAAH0AAAAAlHYW1lRXJyb3IAAAA=",
         "AAAAAAAAAAAAAAAQYWNjZXB0X21peF9vZmZlcgAAAAUAAAAAAAAACG9mZmVyX2lkAAAABgAAAAAAAAAHcGFydG5lcgAAAAATAAAAAAAAAAp0b2tlbl9iX2lkAAAAAAAGAAAAAAAAAAlmZWVfYmFsbHMAAAAAAAALAAAAAAAAAAlmZWVfc3RhcnMAAAAAAAALAAAAAQAAA+kAAAAGAAAH0AAAAAlHYW1lRXJyb3IAAAA=",
         "AAAAAAAAAAAAAAAQY2FuY2VsX21peF9vZmZlcgAAAAIAAAAAAAAABW93bmVyAAAAAAAAEwAAAAAAAAAJcmVjaXBlX2lkAAAAAAAABAAAAAEAAAPpAAAD7QAAAAAAAAfQAAAACUdhbWVFcnJvcgAAAA==",
-        "AAAAAAAAAAAAAAAHbWl4X3RlYQAAAAAEAAAAAAAAAAVvd25lcgAAAAAAABMAAAAAAAAACXJlY2lwZV9pZAAAAAAAAAQAAAAAAAAABWJhbGxzAAAAAAAACwAAAAAAAAAFc3RhcnMAAAAAAAPoAAAACwAAAAEAAAPpAAAABgAAB9AAAAAJR2FtZUVycm9yAAAA",
         "AAAAAAAAAAAAAAALdXBncmFkZV90ZWEAAAAABAAAAAAAAAAFb3duZXIAAAAAAAATAAAAAAAAAAZuZnRfaWQAAAAAAAYAAAAAAAAABWJhbGxzAAAAAAAACwAAAAAAAAAFc3RhcnMAAAAAAAALAAAAAQAAA+kAAAPtAAAAAAAAB9AAAAAJR2FtZUVycm9yAAAA",
         "AAAAAAAAAAAAAAAIbGlzdF9uZnQAAAAEAAAAAAAAAAZzZWxsZXIAAAAAABMAAAAAAAAACHRva2VuX2lkAAAABgAAAAAAAAAFcHJpY2UAAAAAAAALAAAAAAAAAA1wYXltZW50X3Rva2VuAAAAAAAH0AAAAAxQYXltZW50VG9rZW4AAAABAAAD6QAAA+0AAAAAAAAH0AAAAAlHYW1lRXJyb3IAAAA=",
         "AAAAAAAAAAAAAAAKZGVsaXN0X25mdAAAAAAAAgAAAAAAAAAGc2VsbGVyAAAAAAATAAAAAAAAAAh0b2tlbl9pZAAAAAYAAAABAAAD6QAAA+0AAAAAAAAH0AAAAAlHYW1lRXJyb3IAAAA=",
@@ -658,7 +630,6 @@ export class Client extends ContractClient {
     create_mix_offer: this.txFromJSON<Result<u64>>,
     accept_mix_offer: this.txFromJSON<Result<u64>>,
     cancel_mix_offer: this.txFromJSON<Result<void>>,
-    mix_tea: this.txFromJSON<Result<u64>>,
     upgrade_tea: this.txFromJSON<Result<void>>,
     list_nft: this.txFromJSON<Result<void>>,
     delist_nft: this.txFromJSON<Result<void>>,
