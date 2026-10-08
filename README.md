@@ -286,7 +286,7 @@ src/
 ### **Prerequisites**
 
 * Rust & Cargo
-* Soroban compilation target (`wasm32-unknown-unknown`)
+* Soroban compilation target (`wasm32v1-none`), added with `rustup target add wasm32v1-none`
 * Node.js ≥ 22
 * pnpm
 * Stellar CLI
