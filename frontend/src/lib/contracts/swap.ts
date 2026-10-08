@@ -57,4 +57,32 @@ export const createSwapClient = ({ publicKey, signer }: CreateClientParams = {})
 };
 
 export type { TeaMetadata as SwapTeaMetadata } from "swap-client";
+export interface SwapRate {
+  starsPerXlmNum: bigint;
+  starsPerXlmDen: bigint;
+}
+
+/**
+ * Reads the admin-configured XLM -> STARS rate from the swap contract. The rate
+ * lives on-chain so the displayed price and the minted amount always agree with
+ * the contract's configuration instead of a page-local literal.
+ */
+export const fetchSwapRate = async (): Promise<SwapRate> => {
+  const client = createSwapClient();
+  const rateTx = await client.rate();
+  const result = rateTx.result;
+
+  if (!result) {
+    throw new Error("Swap rate is not configured on-chain.");
+  }
+
+  const [starsPerXlmNum, starsPerXlmDen] = result;
+
+  if (starsPerXlmNum <= 0n || starsPerXlmDen <= 0n) {
+    throw new Error("Swap rate is not configured on-chain.");
+  }
+
+  return { starsPerXlmNum, starsPerXlmDen };
+};
+
 

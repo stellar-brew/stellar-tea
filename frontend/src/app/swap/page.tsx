@@ -9,14 +9,11 @@ import { useWallet } from "@/lib/hooks/useWallet";
 import { useWalletBalance } from "@/lib/hooks/useWalletBalance";
 import { STARS_BALANCE_REFRESH_EVENT } from "@/lib/hooks/useStarsBalance";
 import { fetchStarsMetadata, type StarsWalletSigner } from "@/lib/contracts/stars";
-import { createSwapClient } from "@/lib/contracts/swap";
+import { createSwapClient, fetchSwapRate } from "@/lib/contracts/swap";
 import { parseAmountToI128 } from "@/lib/util/tokenMath";
 import { extractSorobanErrorMessage } from "@/lib/util/soroban";
 import { transactionExplorerUrl } from "@/lib/stellarConfig";
 
-const STARS_PER_XLM = 24.5;
-const STARS_PER_XLM_NUM = 245n;
-const STARS_PER_XLM_DEN = 10n;
 const STROOPS_PER_XLM = 10_000_000n;
 const MIN_XLM_SWAP = 1;
 const SLIPPAGE_OPTIONS = [0.1, 0.5, 1.0];
@@ -39,6 +36,8 @@ export default function SwapPage() {
     name: "Stars",
     symbol: "STARS",
   });
+  const [swapRate, setSwapRate] = useState<{ num: bigint; den: bigint } | null>(null);
+  const [rateError, setRateError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -60,6 +59,34 @@ export default function SwapPage() {
     };
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadRate = async () => {
+      try {
+        const onchainRate = await fetchSwapRate();
+        if (!cancelled) {
+          setSwapRate({ num: onchainRate.starsPerXlmNum, den: onchainRate.starsPerXlmDen });
+          setRateError(null);
+        }
+      } catch (error) {
+        console.error("Failed to load the swap rate", error);
+        if (!cancelled) {
+          setSwapRate(null);
+          setRateError(
+            error instanceof Error ? error.message : "Unable to read the on-chain swap rate.",
+          );
+        }
+      }
+    };
+
+    void loadRate();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const nativeBalance = useMemo(() => {
     const native = balances.find(
       ({ asset_type }) => asset_type === "native",
@@ -68,18 +95,16 @@ export default function SwapPage() {
     return Number.isFinite(parsed) ? parsed : 0;
   }, [balances]);
 
+  const rateValue = useMemo(() => {
+    if (!swapRate) return null;
+    return Number(swapRate.num) / Number(swapRate.den);
+  }, [swapRate]);
+
   const nextStarsAmount = useMemo(() => {
     const amount = Number.parseFloat(xlmAmount);
-    if (!Number.isFinite(amount) || amount <= 0) return "0.00";
-    return formatAmount(amount * STARS_PER_XLM, 2);
-  }, [xlmAmount]);
-
-  const priceImpactText = useMemo(() => {
-    const amount = Number.parseFloat(xlmAmount);
-    if (!Number.isFinite(amount) || amount <= 0) return "≈ 0.00%";
-    const impact = Math.min(amount / 500, 0.12) * 100;
-    return `≈ ${formatAmount(impact, impact >= 1 ? 2 : 3)}%`;
-  }, [xlmAmount]);
+    if (!Number.isFinite(amount) || amount <= 0 || rateValue === null) return "0.00";
+    return formatAmount(amount * rateValue, 2);
+  }, [xlmAmount, rateValue]);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -127,15 +152,23 @@ export default function SwapPage() {
       return;
     }
 
+    if (!swapRate) {
+      toast({
+        title: "Rate unavailable",
+        description:
+          rateError ?? "The on-chain swap rate is not configured. Try again shortly.",
+      });
+      return;
+    }
+
     setIsConfirming(true);
     try {
       const xlmAmountInStroops = parseAmountToI128(xlmAmount, 7);
       const starsDecimals = BigInt(Math.max(0, tokenMeta.decimals));
       const starsScale = 10n ** starsDecimals;
-      const starsPerXlmScaled =
-        (STARS_PER_XLM_NUM * starsScale) / STARS_PER_XLM_DEN;
       const amountToMint =
-        (xlmAmountInStroops * starsPerXlmScaled) / STROOPS_PER_XLM;
+        (xlmAmountInStroops * swapRate.num * starsScale) /
+        (swapRate.den * STROOPS_PER_XLM);
 
       if (amountToMint <= 0n || xlmAmountInStroops <= 0n) {
         throw new Error("Swap amount resolves to zero.");
@@ -249,7 +282,8 @@ export default function SwapPage() {
                 Swap details
               </h2>
               <span className="text-xs uppercase tracking-[0.28em] text-slate-400">
-                Rate 1 XLM = {formatAmount(STARS_PER_XLM, 2)} STARS
+                Rate 1 XLM ={" "}
+                {rateValue === null ? "—" : formatAmount(rateValue, 2)} STARS
               </span>
             </div>
 
@@ -327,12 +361,6 @@ export default function SwapPage() {
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-slate-500">Price impact</span>
-                  <span className="text-sm font-semibold text-purple-600">
-                    {priceImpactText}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
                   <span className="text-sm text-slate-500">Slippage guard</span>
                   <span className="text-sm font-semibold text-slate-700">
                     {slippage}%
@@ -344,7 +372,7 @@ export default function SwapPage() {
             <Button
               type="submit"
               variant="candy"
-              disabled={isConfirming}
+              disabled={isConfirming || !swapRate}
               className="mt-8 h-14 w-full rounded-full text-sm font-semibold uppercase tracking-[0.3em]"
             >
               {isConfirming ? "Submitting…" : "Swap now"}
@@ -378,7 +406,7 @@ export default function SwapPage() {
               </h4>
               <p className="mt-2">
                 For larger trades, split the order into several batches to
-                minimise price impact and stay within liquidity depth.
+                stay within the available liquidity.
               </p>
             </div>
 
