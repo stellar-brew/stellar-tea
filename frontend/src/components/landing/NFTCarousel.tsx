@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -73,15 +74,17 @@ export const NFTCarousel = () => {
               </div>
               <div className="flex flex-wrap items-center gap-3">
                 <Button
+                  asChild
                   className="rounded-full bg-gradient-to-tr from-pink-500 to-purple-500 px-6 text-xs font-semibold uppercase tracking-[0.28em]"
                 >
-                  Mint This Drop
+                  <Link href="/mint">Mint This Drop</Link>
                 </Button>
                 <Button
+                  asChild
                   variant="ghost"
                   className="text-xs font-semibold uppercase tracking-[0.28em] text-purple-500 hover:bg-purple-100/50"
                 >
-                  View Rarity Guide
+                  <Link href="/marketplace">View Rarity Guide</Link>
                 </Button>
               </div>
             </div>
@@ -115,6 +118,7 @@ export const NFTCarousel = () => {
                       : "border-white/70 opacity-70 hover:opacity-100"
                   }`}
                   aria-label={`Preview ${item.name}`}
+                  aria-pressed={activeIndex === index}
                 >
                   <Image
                     src={item.image}

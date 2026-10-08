@@ -274,10 +274,16 @@ const MintPage = () => {
               <TeaCard
                 data={mintedPreview}
                 onList={() =>
-                  console.log("List minted token for sale", mintedPreview.tokenId ?? "unknown")
+                  toast({
+                    title: "Listing coming soon",
+                    description: `Listing tea #${mintedPreview.tokenId ?? "unknown"} for sale is not available yet.`,
+                  })
                 }
                 onMix={() =>
-                  console.log("Send minted token for fusion", mintedPreview.tokenId ?? "unknown")
+                  toast({
+                    title: "Fusion coming soon",
+                    description: `Sending tea #${mintedPreview.tokenId ?? "unknown"} for fusion is not available yet.`,
+                  })
                 }
               />
             </div>
