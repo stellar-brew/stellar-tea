@@ -1,18 +1,18 @@
 "use client";
 
-import type { IPFSHTTPClient, AddResult } from "ipfs-http-client";
+import type { KuboRPCClient, AddResult } from "kubo-rpc-client";
 
 import { getIPFSClientConfig, getIPFSUrl } from "./ipfs-config";
 
-let ipfsClient: IPFSHTTPClient | null = null;
+let ipfsClient: KuboRPCClient | null = null;
 
-const ensureClient = async (): Promise<IPFSHTTPClient> => {
+const ensureClient = async (): Promise<KuboRPCClient> => {
   if (typeof window === "undefined") {
     throw new Error("IPFS client is only available in the browser environment.");
   }
 
   if (!ipfsClient) {
-    const { create } = await import("ipfs-http-client");
+    const { create } = await import("kubo-rpc-client");
     ipfsClient = create(getIPFSClientConfig());
   }
 
