@@ -35,18 +35,13 @@ lerna-debug.log*
 # macOS-specific files
 .DS_Store
 
-# generated contract clients
-packages/*
-# if you have other workspace packages, add them here
-!packages/.gitkeep
-!packages/balls-token-client/
-!packages/balls-token-client/**
-!packages/stars-token-client/
-!packages/stars-token-client/**
-!packages/tea-game-client/
-!packages/tea-game-client/**
-!packages/tea-nft-client/
-!packages/tea-nft-client/**
+# generated contract clients: keep source and package.json for every
+# packages/<name> client tracked (including clients generated in the future),
+# and ignore only build artefacts so a client can never be built locally yet be
+# missing from the repository. `dist/` is already ignored globally above.
+packages/*/dist
+packages/*/out
+packages/*/node_modules
 
 # generated contract client imports
 src/contracts/*
