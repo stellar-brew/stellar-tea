@@ -19,7 +19,6 @@ const STARS_PER_XLM_NUM = 245n;
 const STARS_PER_XLM_DEN = 10n;
 const STROOPS_PER_XLM = 10_000_000n;
 const MIN_XLM_SWAP = 1;
-const SLIPPAGE_OPTIONS = [0.1, 0.5, 1.0];
 
 const formatAmount = (value: number, fractionDigits = 2) =>
   value.toLocaleString(undefined, {
@@ -32,7 +31,6 @@ export default function SwapPage() {
   const { balances, isLoading, updateBalance } = useWalletBalance();
 
   const [xlmAmount, setXlmAmount] = useState("10");
-  const [slippage, setSlippage] = useState<number>(SLIPPAGE_OPTIONS[1]);
   const [isConfirming, setIsConfirming] = useState(false);
   const [tokenMeta, setTokenMeta] = useState({
     decimals: 7,
@@ -234,8 +232,8 @@ export default function SwapPage() {
           </h1>
           <p className="max-w-2xl text-base text-slate-600 md:text-lg">
             Route liquidity through the Stellar automated market maker and
-            receive STARS tokens in seconds. Connect your wallet, set your risk
-            preferences, and review the projected outcome before confirming.
+            receive STARS tokens in seconds. Connect your wallet and review the
+            projected outcome before confirming.
           </p>
         </section>
 
@@ -293,32 +291,6 @@ export default function SwapPage() {
                 </div>
               </div>
 
-              <div className="space-y-3">
-                <span className="block text-xs font-semibold uppercase tracking-[0.26em] text-slate-500">
-                  Slippage tolerance
-                </span>
-                <div className="flex flex-wrap gap-3">
-                  {SLIPPAGE_OPTIONS.map((option) => (
-                    <button
-                      key={option}
-                      type="button"
-                      onClick={() => setSlippage(option)}
-                      className={`rounded-full border px-5 py-2 text-xs font-semibold uppercase tracking-[0.24em] transition ${
-                        slippage === option
-                          ? "border-purple-400 bg-purple-100 text-purple-700 shadow-[0_10px_25px_rgba(189,140,255,0.18)]"
-                          : "border-white/70 bg-white/70 text-slate-500 hover:border-purple-200 hover:text-purple-600"
-                      }`}
-                    >
-                      {option}% 
-                    </button>
-                  ))}
-                </div>
-                <p className="text-xs text-slate-500">
-                  If the execution price moves by more than your tolerance, the
-                  transaction will cancel automatically.
-                </p>
-              </div>
-
               <div className="space-y-4 rounded-2xl border border-white/70 bg-white/70 p-5 shadow-[0_12px_32px_rgba(189,140,255,0.16)]">
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-slate-500">You receive</span>
@@ -330,12 +302,6 @@ export default function SwapPage() {
                   <span className="text-sm text-slate-500">Price impact</span>
                   <span className="text-sm font-semibold text-purple-600">
                     {priceImpactText}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-slate-500">Slippage guard</span>
-                  <span className="text-sm font-semibold text-slate-700">
-                    {slippage}%
                   </span>
                 </div>
               </div>
@@ -368,7 +334,6 @@ export default function SwapPage() {
                 <li>
                   • Keep at least 1 XLM free to avoid Stellar reserve issues.
                 </li>
-                <li>• Adjust slippage to match your risk appetite.</li>
               </ul>
             </div>
 
