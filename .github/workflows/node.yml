@@ -17,6 +17,7 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/cache@v3
@@ -39,6 +40,7 @@ jobs:
       - name: Install cargo-binstall
         uses: cargo-bins/cargo-binstall@v1.15.6
       - name: Check for stellar-scaffold binary
+        timeout-minutes: 10
         run: |
           if ! command -v stellar-scaffold &> /dev/null; then
             echo "stellar-scaffold not found, installing..."
@@ -46,12 +48,20 @@ jobs:
           else
             echo "stellar-scaffold already installed. Clear cache to force reinstall."
           fi
-      - run: npm ci
+      - name: Install dependencies
+        run: npm ci
+        timeout-minutes: 10
       - run: npm run lint
       - run: npx prettier . --check
       - name: Build clients before building the project
         run: STELLAR_SCAFFOLD_ENV=development stellar-scaffold build --build-clients
-      - run: npm run install:contracts
-      - run: npm run build
+        timeout-minutes: 15
+      - name: Install contract clients
+        run: npm run install:contracts
+        timeout-minutes: 10
+      - name: Build project
+        run: npm run build
+        timeout-minutes: 15
       - name: Run tests
         run: npm test --if-present
+        timeout-minutes: 15
