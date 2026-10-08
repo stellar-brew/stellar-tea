@@ -24,7 +24,6 @@
 .DS_Store
 *.pem
 
-ipfs-config.ts
 
 # debug
 npm-debug.log*
