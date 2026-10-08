@@ -74,7 +74,7 @@ fn compose_metadata(env: &Env, recipe: &Recipe, offer: &MixOffer) -> TeaMetadata
     }
     TeaMetadata {
         display_name: recipe.name.clone(),
-        flavor_profile: offer.desired_profile.clone(),
+        flavor_profile: recipe.flavor_profile.clone(),
         rarity: recipe.base_rarity,
         level: recipe.base_level,
         infusion: String::from_str(env, "fusion"),
@@ -884,5 +884,60 @@ impl StellarTeaGame {
         env.events()
             .publish(("event_created",), (event_id, stake, deadline));
         Ok(())
+    }
+}
+
+
+#[cfg(test)]
+mod compose_metadata_tests {
+    extern crate std;
+
+    use super::*;
+    use crate::mixing::{MixOffer, OfferStatus};
+    use crate::tea::TeaStats;
+    use soroban_sdk::{testutils::Address as _, Address, Env, String};
+
+    #[test]
+    fn compose_metadata_takes_fields_from_the_recipe() {
+        let env = Env::default();
+        let recipe = Recipe {
+            id: 1,
+            name: String::from_str(&env, "Fusion"),
+            flavor_profile: String::from_str(&env, "jasmine"),
+            base_level: 2,
+            base_rarity: 3,
+            balls_cost: 0,
+            stars_cost: 0,
+            base_stats: TeaStats {
+                sweetness: 1,
+                body: 2,
+                caffeine: 3,
+            },
+            image_uri: String::from_str(&env, "ipfs://recipe"),
+        };
+        let offer = MixOffer {
+            owner_a: Address::generate(&env),
+            token_a_id: 10,
+            owner_b: Some(Address::generate(&env)),
+            token_b_id: Some(20),
+            desired_profile: String::from_str(&env, "citrus"),
+            min_rank: 1,
+            recipe_id: 1,
+            fee_balls: 0,
+            fee_stars: 0,
+            partner_fee_balls: 0,
+            partner_fee_stars: 0,
+            status: OfferStatus::WaitingForPartner,
+            created_at: 0,
+            deadline: 1_000,
+        };
+
+        let metadata = compose_metadata(&env, &recipe, &offer);
+
+        assert_eq!(metadata.flavor_profile, recipe.flavor_profile);
+        assert_eq!(metadata.display_name, recipe.name);
+        assert_eq!(metadata.rarity, recipe.base_rarity);
+        assert_eq!(metadata.level, recipe.base_level);
+        assert_eq!(metadata.lineage.len(), 2);
     }
 }
