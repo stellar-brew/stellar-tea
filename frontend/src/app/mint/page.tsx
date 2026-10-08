@@ -11,7 +11,7 @@ import { generateLocalLayers } from "@/lib/nft/generateLocal";
 import { buildFlavorTemplate } from "@/lib/nft/metadataTemplate";
 import { renderTeaImage } from "@/lib/nft/generator";
 import { uploadBlobToIpfs, uploadJsonToIpfs } from "@/lib/ipfs/client";
-import { getTeaContractId } from "@/lib/contracts/nft";
+import { getMintFeeDestination } from "@/lib/contracts/nft";
 import { BASE_MINT_STARS_COST, payStarsFee, type StarsWalletSigner } from "@/lib/contracts/stars";
 import {
   createSwapClient,
@@ -99,7 +99,7 @@ const MintPage = () => {
         publicKey: address,
         signer: signTransaction as StarsWalletSigner,
         amount: BASE_MINT_STARS_COST,
-        destination: getTeaContractId(),
+        destination: getMintFeeDestination(),
       });
 
       const rendered = await renderTeaImage(layers, {
