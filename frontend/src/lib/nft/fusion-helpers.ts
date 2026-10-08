@@ -1,6 +1,6 @@
 "use client";
 
-import type { FlavorStats, TeaColorway, TeaMetadata } from "@/lib/nft";
+import { toIpfsUri, type FlavorStats, type TeaColorway, type TeaMetadata } from "@/lib/nft";
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
@@ -116,6 +116,15 @@ export const deriveFusionStats = (parents: TeaMetadata[]): FlavorStats => {
     sweetness: Math.round(totals.sweetness / parents.length),
   };
 };
+
+/**
+ * Layer assets are either absolute `/-rooted` public paths (the bundled layers
+ * under `public/nft/generate`) or bare IPFS CIDs. Only bare CIDs should become
+ * `ipfs://` URIs; converting a local path would produce `ipfs:///...`, which
+ * points at a non-existent IPFS object.
+ */
+export const toLayerAssetUri = (assetCid: string): string =>
+  assetCid.startsWith("/") ? assetCid : toIpfsUri(assetCid);
 
 export interface FusionParentLike {
   tokenId: string;

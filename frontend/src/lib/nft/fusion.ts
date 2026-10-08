@@ -1,13 +1,14 @@
 "use client";
 
 import { createTeaNftClient, type TeaNftWalletSigner } from "@/lib/contracts/nft";
-import { buildTeaMetadata, type TeaMetadata, type LayerSnapshot, toIpfsUri } from "@/lib/nft";
+import { buildTeaMetadata, type TeaMetadata, type LayerSnapshot } from "@/lib/nft";
 import { renderTeaImage, type SelectedLayer } from "@/lib/nft/generator";
 import { uploadBlobToIpfs, uploadJsonToIpfs } from "@/lib/ipfs/client";
 import {
   buildLineage,
   deriveFusionColorway,
   deriveFusionStats,
+  toLayerAssetUri,
   type FusionParentLike,
 } from "@/lib/nft/fusion-helpers";
 
@@ -40,7 +41,7 @@ const buildLayerSnapshots = (layers: SelectedLayer[]): LayerSnapshot[] =>
     variantId: layer.variant.id,
     label: layer.variant.label,
     order: layer.order,
-    assetUri: toIpfsUri(layer.variant.assetCid),
+    assetUri: toLayerAssetUri(layer.variant.assetCid),
     tint: layer.tint,
   }));
 
