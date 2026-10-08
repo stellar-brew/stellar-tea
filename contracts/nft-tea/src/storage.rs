@@ -1,5 +1,6 @@
 use soroban_sdk::{contracttype, Env};
 
+use crate::error::Error;
 use crate::tea::TeaMetadata;
 
 #[derive(Clone)]
@@ -14,11 +15,11 @@ pub fn set_metadata(env: &Env, token_id: u64, metadata: &TeaMetadata) {
         .set(&DataKey::Token(token_id), metadata);
 }
 
-pub fn get_metadata(env: &Env, token_id: u64) -> TeaMetadata {
+pub fn get_metadata(env: &Env, token_id: u64) -> Result<TeaMetadata, Error> {
     env.storage()
         .persistent()
         .get::<DataKey, TeaMetadata>(&DataKey::Token(token_id))
-        .expect("metadata missing")
+        .ok_or(Error::MetadataNotFound)
 }
 
 pub fn remove_metadata(env: &Env, token_id: u64) {

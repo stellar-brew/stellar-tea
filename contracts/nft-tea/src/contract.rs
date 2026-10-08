@@ -6,7 +6,7 @@ use stellar_tokens::non_fungible::{
     Base, NonFungibleToken,
 };
 
-use crate::{admin, metadata, storage, tea::TeaMetadata};
+use crate::{admin, error::Error, metadata, storage, tea::TeaMetadata};
 
 fn as_nft_id(id: u64) -> u32 {
     u32::try_from(id).expect("token id exceeds enumerated range")
@@ -70,7 +70,7 @@ impl TeaNftContract {
         id
     }
 
-    pub fn get_metadata(env: Env, token_id: u64) -> TeaMetadata {
+    pub fn get_metadata(env: Env, token_id: u64) -> Result<TeaMetadata, Error> {
         storage::get_metadata(&env, token_id)
     }
 
@@ -83,27 +83,40 @@ impl TeaNftContract {
         );
     }
 
-    pub fn set_level(env: Env, caller: Address, token_id: u64, new_level: u32) {
+    pub fn set_level(
+        env: Env,
+        caller: Address,
+        token_id: u64,
+        new_level: u32,
+    ) -> Result<(), Error> {
         admin::require_operator_or_admin(&env, &caller);
-        let mut metadata_state = storage::get_metadata(&env, token_id);
+        let mut metadata_state = storage::get_metadata(&env, token_id)?;
         metadata_state.level = new_level;
         storage::set_metadata(&env, token_id, &metadata_state);
         env.events().publish(("level_up",), (token_id, new_level));
+        Ok(())
     }
 
-    pub fn set_lineage(env: Env, caller: Address, token_id: u64, lineage: Vec<u64>) {
+    pub fn set_lineage(
+        env: Env,
+        caller: Address,
+        token_id: u64,
+        lineage: Vec<u64>,
+    ) -> Result<(), Error> {
         admin::require_operator_or_admin(&env, &caller);
-        let mut metadata_state = storage::get_metadata(&env, token_id);
+        let mut metadata_state = storage::get_metadata(&env, token_id)?;
         metadata_state.lineage = lineage;
         storage::set_metadata(&env, token_id, &metadata_state);
         env.events().publish(("lineage_set",), (token_id,));
+        Ok(())
     }
 
     pub fn burn_token(env: Env, caller: Address, owner: Address, token_id: u64) {
         if caller != owner {
             admin::require_operator_or_admin(&env, &caller);
         }
-        owner.require_auth();
+        // `Base::burn` already requires `owner`'s authorization; asking for it
+        // again in the same invocation frame is rejected by the host.
         Base::burn(&env, &owner, as_nft_id(token_id));
         storage::remove_metadata(&env, token_id);
         env.events().publish(("tea_burned",), (owner, token_id));
