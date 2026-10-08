@@ -4,19 +4,19 @@ import socialVisual from "@/../public/design/images/Layer 4.png";
 
 const socialPillars = [
   {
-    heading: "Tea clubs",
-    copy: "Create or join dedicated groups with shared vaults, weekly quests, and custom lounges that evolve with your crew.",
-    stat: "1.8K clubs earning seasonal rewards",
+    heading: "Co-op mixing",
+    copy: "Mix offers are the social core: lock a tea, invite a partner by address, and co-sign a transaction that mints a fusion with recorded lineage.",
+    stat: "Two wallets linked on-chain per fusion",
   },
   {
-    heading: "Invite-to-earn",
-    copy: "Refer friends with deep-link invites that reward rare accessories, décor drops, and brewing boosts instead of raw tokens.",
-    stat: "Avg. 2.6 new players per invite chain",
+    heading: "Lineage provenance",
+    copy: "Every fusion records its parent token ids on-chain, giving your collection a verifiable provenance trail for the marketplace.",
+    stat: "Parent token ids stored in metadata",
   },
   {
-    heading: "Tea houses",
-    copy: "Virtual venues host tasting parties, leaderboard reveals, and co-op challenges. Every décor item is an NFT with utility.",
-    stat: "71% of sessions happen inside houses",
+    heading: "Event staking",
+    copy: "Organizer-led event pools let players stake STARS together; when the event finishes 10% is burned and the rest is shared out.",
+    stat: "10% burned, 90% distributed",
   },
 ];
 
@@ -31,9 +31,9 @@ export const SocialSection = () => {
               Build a fandom that returns for the people and the pours
             </h2>
             <p className="mt-5 text-base leading-relaxed text-slate-600">
-              Stellar Tea bakes community into every layer. Play together, mint
-              together, and celebrate each fusion as a club milestone. Social
-              mechanics amplify retention without inflating the economy.
+              Stellar Tea bakes collaboration into every layer: every fusion links
+              two wallets on-chain, so playing together is part of the game loop
+              rather than a bolt-on.
             </p>
 
             <div className="mt-10 space-y-8">

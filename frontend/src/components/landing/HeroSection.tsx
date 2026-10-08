@@ -49,19 +49,19 @@ export const HeroSection = () => {
           <div className="mt-12 grid gap-6 sm:grid-cols-3">
             {[
               {
-                label: "Teas minted",
-                value: "48K+",
-                sub: "Each with on-chain rarity DNA",
+                label: "Marketplace fee",
+                value: "3%",
+                sub: "2% burned, 1% to treasury on every sale",
               },
               {
-                label: "Mix success rate",
-                value: "92%",
-                sub: "Co-op transactions completed daily",
+                label: "Daily rewards",
+                value: "0.02 BALLS + 0.002 STARS",
+                sub: "Rate-limited claim enforced on-chain",
               },
               {
-                label: "Clubs brewing",
-                value: "1.8K",
-                sub: "Communities owning tea houses",
+                label: "Mixer payout",
+                value: "80%",
+                sub: "Returned to the losing brewer; 20% to treasury",
               },
             ].map((metric) => (
               <div key={metric.label} className="glass-card p-6">
@@ -104,8 +104,7 @@ export const HeroSection = () => {
                 </p>
                 <h3 className="mt-1 text-2xl text-slate-800">Galactic Guava</h3>
                 <p className="text-sm text-slate-500">
-                  Limited infusion blending aurora guava with star jasmine. Only
-                  250 bottles sealed.
+                  Flagship infusion blending aurora guava with star jasmine.
                 </p>
               </div>
             </div>

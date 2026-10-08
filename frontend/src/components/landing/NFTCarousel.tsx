@@ -10,21 +10,21 @@ const nftItems = [
     name: "Aurora Lychee Swirl",
     flavor: "Lychee • Moonlit Hibiscus • Crystal Tapioca",
     rarity: "Mythic Fusion",
-    yield: "Stacks +18% Stars on resale",
+    yield: "Records parent lineage on-chain",
     image: "/design/nft/stellar-tea-001.png",
   },
   {
     name: "Nebula Peach Cream",
     flavor: "White Peach • Cosmic Cream • Prism Jelly",
     rarity: "Legendary Seasonal",
-    yield: "Boosts club prestige during weekend events",
+    yield: "Tradeable on the custodial marketplace",
     image: "/design/nft/stellar-tea-002.png",
   },
   {
     name: "Galactic Ube Frost",
     flavor: "Ube • Starlight Vanilla • Aurora Pearls",
     rarity: "Founder Reserve",
-    yield: "Unlocks co-op brewing without cooldown",
+    yield: "Eligible for co-op mixing offers",
     image: "/design/nft/stellar-tea-003.png",
   },
 ];
@@ -48,13 +48,13 @@ export const NFTCarousel = () => {
           <div className="flex-1">
             <span className="tag-chip">Signature NFT Series</span>
             <h2 className="mt-6 text-slate-900">
-              Showcase bubble teas that collectors can sip in the metaverse
+              Showcase bubble teas that collectors can mint, mix and trade
             </h2>
             <p className="mt-5 text-base leading-relaxed text-slate-600">
-              Every Stellar Tea NFT arrives as a studio-grade asset: cinematic
-              renders, animated garnish, and real brewing lore. Display them in
-              your lounge, trade on the marketplace, or remix into your next
-              rarity tier.
+              Every Stellar Tea NFT is rendered in the browser from layered
+              assets and carries on-chain metadata with its rarity, stats and
+              lineage. Display it in your collection, trade it on the
+              marketplace, or mix it into the next rarity tier.
             </p>
             <div className="mt-10 grid gap-6">
               <div className="rounded-[28px] border border-white/60 bg-white/80 p-6 shadow-[0_18px_45px_rgba(189,140,255,0.22)]">
