@@ -60,7 +60,7 @@ impl BallsToken {
     }
 
     pub fn burn_by_admin(env: Env, from: Address, amount: i128) {
-        let admin = admin::require_admin(&env);
+        let admin = admin::get_admin(&env);
         burn::burn_by_admin(&env, &from, amount);
         env.events().publish(("burn_admin",), (admin, from, amount));
     }
