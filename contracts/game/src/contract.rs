@@ -886,3 +886,394 @@ impl StellarTeaGame {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod integration_tests {
+    extern crate std;
+    use super::*;
+    use crate::rewards::CLAIM_INTERVAL;
+    use crate::tea::{TeaMetadata, TeaStats};
+    use soroban_sdk::{
+        contract, contractimpl, contracttype,
+        testutils::{Address as _, Events as _, Ledger as _},
+        Address, Env, String, Symbol, TryFromVal, Vec,
+    };
+
+    #[contracttype]
+    enum TokenKey {
+        Balance(Address),
+        Burned,
+    }
+
+    #[contracttype]
+    enum NftKey {
+        Owner(u64),
+        Metadata(u64),
+        NextId,
+    }
+
+    #[contract]
+    struct TestToken;
+
+    #[contractimpl]
+    impl TestToken {
+        pub fn mint(env: Env, to: Address, amount: i128) {
+            token_set(&env, &to, token_balance(&env, &to) + amount);
+        }
+
+        pub fn burn(env: Env, from: Address, amount: i128) {
+            token_set(&env, &from, token_balance(&env, &from) - amount);
+            let burned: i128 = env
+                .storage()
+                .instance()
+                .get(&TokenKey::Burned)
+                .unwrap_or(0);
+            env.storage()
+                .instance()
+                .set(&TokenKey::Burned, &(burned + amount));
+        }
+
+        pub fn transfer(env: Env, from: Address, to: Address, amount: i128) {
+            token_move(&env, &from, &to, amount);
+        }
+
+        pub fn transfer_from(env: Env, _spender: Address, from: Address, to: Address, amount: i128) {
+            token_move(&env, &from, &to, amount);
+        }
+
+        pub fn balance(env: Env, id: Address) -> i128 {
+            token_balance(&env, &id)
+        }
+
+        pub fn burned(env: Env) -> i128 {
+            env.storage()
+                .instance()
+                .get(&TokenKey::Burned)
+                .unwrap_or(0)
+        }
+    }
+
+    #[contract]
+    struct TestNft;
+
+    #[contractimpl]
+    impl TestNft {
+        pub fn mint(env: Env, _caller: Address, to: Address, metadata: TeaMetadata) -> u64 {
+            let id: u64 = env
+                .storage()
+                .instance()
+                .get(&NftKey::NextId)
+                .unwrap_or(0)
+                + 1;
+            env.storage().instance().set(&NftKey::NextId, &id);
+            env.storage().instance().set(&NftKey::Owner(id), &to);
+            env.storage()
+                .instance()
+                .set(&NftKey::Metadata(id), &metadata);
+            id
+        }
+
+        pub fn owner(env: Env, token_id: u64) -> Address {
+            env.storage()
+                .instance()
+                .get(&NftKey::Owner(token_id))
+                .unwrap()
+        }
+
+        pub fn get_metadata(env: Env, token_id: u64) -> TeaMetadata {
+            env.storage()
+                .instance()
+                .get(&NftKey::Metadata(token_id))
+                .unwrap()
+        }
+
+        pub fn set_metadata(env: Env, _caller: Address, token_id: u64, metadata: TeaMetadata) {
+            env.storage()
+                .instance()
+                .set(&NftKey::Metadata(token_id), &metadata);
+        }
+
+        pub fn burn_token(env: Env, _caller: Address, _owner: Address, token_id: u64) {
+            env.storage().instance().remove(&NftKey::Owner(token_id));
+            env.storage()
+                .instance()
+                .remove(&NftKey::Metadata(token_id));
+        }
+
+        pub fn transfer(env: Env, _from: Address, to: Address, token_id: u64) {
+            env.storage().instance().set(&NftKey::Owner(token_id), &to);
+        }
+
+        pub fn total_minted(env: Env) -> u64 {
+            env.storage().instance().get(&NftKey::NextId).unwrap_or(0)
+        }
+    }
+
+    fn token_balance(env: &Env, id: &Address) -> i128 {
+        env.storage()
+            .instance()
+            .get(&TokenKey::Balance(id.clone()))
+            .unwrap_or(0)
+    }
+
+    fn token_set(env: &Env, id: &Address, value: i128) {
+        env.storage()
+            .instance()
+            .set(&TokenKey::Balance(id.clone()), &value);
+    }
+
+    fn token_move(env: &Env, from: &Address, to: &Address, amount: i128) {
+        token_set(env, from, token_balance(env, from) - amount);
+        token_set(env, to, token_balance(env, to) + amount);
+    }
+
+    struct Fixture {
+        treasury: Address,
+        alice: Address,
+        bob: Address,
+        balls_id: Address,
+        stars_id: Address,
+        nft_id: Address,
+        game_id: Address,
+    }
+
+    fn deploy(env: &Env) -> Fixture {
+        env.mock_all_auths();
+        let admin = Address::generate(env);
+        let treasury = Address::generate(env);
+        let alice = Address::generate(env);
+        let bob = Address::generate(env);
+        let balls_id = env.register(TestToken, ());
+        let stars_id = env.register(TestToken, ());
+        let nft_id = env.register(TestNft, ());
+        let game_id = env.register(
+            StellarTeaGame,
+            (
+                admin,
+                treasury.clone(),
+                balls_id.clone(),
+                stars_id.clone(),
+                nft_id.clone(),
+                None::<Address>,
+            ),
+        );
+        Fixture {
+            treasury,
+            alice,
+            bob,
+            balls_id,
+            stars_id,
+            nft_id,
+            game_id,
+        }
+    }
+
+    fn sample_metadata(env: &Env, name: &str) -> TeaMetadata {
+        let mut lineage = Vec::new(env);
+        lineage.push_back(0);
+        TeaMetadata {
+            display_name: String::from_str(env, name),
+            flavor_profile: String::from_str(env, "floral"),
+            rarity: 1,
+            level: 1,
+            infusion: String::from_str(env, "base"),
+            stats: TeaStats {
+                sweetness: 4,
+                body: 6,
+                caffeine: 8,
+            },
+            lineage,
+            image_uri: String::from_str(env, "ipfs://seed"),
+        }
+    }
+
+    fn seed_nft(env: &Env, fixture: &Fixture, to: &Address, name: &str) -> u64 {
+        let nft = TestNftClient::new(env, &fixture.nft_id);
+        nft.mint(&fixture.game_id, to, &sample_metadata(env, name))
+    }
+
+    fn upsert_recipe(env: &Env, game: &StellarTeaGameClient, recipe_id: u32) {
+        game.upsert_recipe(
+            &recipe_id,
+            &String::from_str(env, "Stub Recipe"),
+            &String::from_str(env, "earthy"),
+            &1u32,
+            &1u32,
+            &100i128,
+            &10i128,
+            &TeaStats {
+                sweetness: 1,
+                body: 1,
+                caffeine: 1,
+            },
+            &String::from_str(env, "ipfs://recipe"),
+        );
+    }
+
+    fn has_topic(env: &Env, name: &str) -> bool {
+        // A `&str` topic is encoded by soroban as a `String`; a `symbol_short!`
+        // topic is a `Symbol`. Accept either so the assertion is robust.
+        let want_symbol = Symbol::new(env, name);
+        let want_string = String::from_str(env, name);
+        env.events().all().iter().any(|(_contract, topics, _data)| {
+            topics.iter().any(|topic| {
+                if let Ok(symbol) = Symbol::try_from_val(env, &topic) {
+                    return symbol == want_symbol;
+                }
+                if let Ok(string) = String::try_from_val(env, &topic) {
+                    return string == want_string;
+                }
+                false
+            })
+        })
+    }
+
+    #[test]
+    fn mix_flow_mints_to_the_winner_and_splits_the_fees() {
+        let env = Env::default();
+        let fixture = deploy(&env);
+        let game = StellarTeaGameClient::new(&env, &fixture.game_id);
+        let balls = TestTokenClient::new(&env, &fixture.balls_id);
+        let stars = TestTokenClient::new(&env, &fixture.stars_id);
+        let nft = TestNftClient::new(&env, &fixture.nft_id);
+
+        balls.mint(&fixture.alice, &1_000_000);
+        balls.mint(&fixture.bob, &1_000_000);
+        stars.mint(&fixture.alice, &1_000_000);
+        stars.mint(&fixture.bob, &1_000_000);
+
+        let token_a = seed_nft(&env, &fixture, &fixture.alice, "Alpha");
+        let token_b = seed_nft(&env, &fixture, &fixture.bob, "Beta");
+        upsert_recipe(&env, &game, 1);
+
+        let fee_balls = 101i128;
+        let fee_stars = 7i128;
+        let deadline = env.ledger().timestamp() + 10_000;
+        let offer_id = game.create_mix_offer(
+            &fixture.alice,
+            &1u32,
+            &token_a,
+            &String::from_str(&env, "citrus"),
+            &0u32,
+            &fee_balls,
+            &fee_stars,
+            &deadline,
+        );
+        let new_token = game.accept_mix_offer(&offer_id, &fixture.bob, &token_b, &fee_balls, &fee_stars);
+        // Events are only retained for the most recent top-level invocation, so
+        // this must be checked before any further contract call.
+        assert!(has_topic(&env, "mix_offer_completed"));
+
+        let winner = nft.owner(&new_token);
+        assert!(
+            winner == fixture.alice || winner == fixture.bob,
+            "winner must be one of the two owners"
+        );
+        let loser = if winner == fixture.alice {
+            fixture.bob.clone()
+        } else {
+            fixture.alice.clone()
+        };
+
+        // The minted token carries the lineage of both inputs, and the two
+        // escrowed input NFTs were burned (2 seeded + 1 minted = 3).
+        assert_eq!(nft.get_metadata(&new_token).lineage.len(), 2);
+        assert_eq!(nft.total_minted(), 3);
+
+        // The fees of both players are pooled, then split by split_fee.
+        let total_balls = fee_balls * 2;
+        let (loser_balls, treasury_balls) = StellarTeaGame::split_fee(total_balls);
+        assert_eq!(balls.balance(&loser), 1_000_000 - fee_balls + loser_balls);
+        assert_eq!(balls.balance(&winner), 1_000_000 - fee_balls);
+        assert_eq!(balls.balance(&fixture.treasury), treasury_balls);
+        assert_eq!(balls.balance(&fixture.game_id), 0);
+
+        let total_stars = fee_stars * 2;
+        let (loser_stars, treasury_stars) = StellarTeaGame::split_fee(total_stars);
+        assert_eq!(stars.balance(&loser), 1_000_000 - fee_stars + loser_stars);
+        assert_eq!(stars.balance(&fixture.treasury), treasury_stars);
+        assert_eq!(stars.balance(&fixture.game_id), 0);
+    }
+
+    #[test]
+    fn marketplace_sale_pays_the_seller_and_burns_two_percent() {
+        let env = Env::default();
+        let fixture = deploy(&env);
+        let game = StellarTeaGameClient::new(&env, &fixture.game_id);
+        let balls = TestTokenClient::new(&env, &fixture.balls_id);
+        let nft = TestNftClient::new(&env, &fixture.nft_id);
+        let buyer = Address::generate(&env);
+        balls.mint(&buyer, &1_000_000);
+
+        let token_id = seed_nft(&env, &fixture, &fixture.alice, "For Sale");
+        game.list_nft(&fixture.alice, &token_id, &10_000i128, &PaymentToken::Balls);
+        assert!(has_topic(&env, "nft_listed"));
+        assert_eq!(nft.owner(&token_id), fixture.game_id);
+
+        game.buy_nft(&buyer, &token_id);
+        assert!(has_topic(&env, "nft_purchased"));
+
+        assert_eq!(nft.owner(&token_id), buyer);
+        assert_eq!(balls.balance(&buyer), 990_000);
+        // 3% total fee: 2% burned, 1% to the treasury, 97% to the seller.
+        assert_eq!(balls.burned(), 200);
+        assert_eq!(balls.balance(&fixture.treasury), 100);
+        assert_eq!(balls.balance(&fixture.alice), 9_700);
+        assert_eq!(balls.balance(&fixture.game_id), 0);
+    }
+
+    #[test]
+    fn upgrade_burns_half_the_fee_and_improves_metadata() {
+        let env = Env::default();
+        let fixture = deploy(&env);
+        let game = StellarTeaGameClient::new(&env, &fixture.game_id);
+        let balls = TestTokenClient::new(&env, &fixture.balls_id);
+        let stars = TestTokenClient::new(&env, &fixture.stars_id);
+        let nft = TestNftClient::new(&env, &fixture.nft_id);
+
+        balls.mint(&fixture.alice, &1_000);
+        stars.mint(&fixture.alice, &1_000);
+        let token_id = seed_nft(&env, &fixture, &fixture.alice, "Upgrade");
+        let before = nft.get_metadata(&token_id);
+
+        game.upgrade_tea(&fixture.alice, &token_id, &101i128, &11i128);
+        assert!(has_topic(&env, "tea_upgraded"));
+
+        let after = nft.get_metadata(&token_id);
+        assert_eq!(after.level, before.level + 1);
+        assert_eq!(after.rarity, before.rarity + 1);
+        assert_eq!(after.stats.body, before.stats.body + 5);
+        assert_eq!(after.stats.caffeine, before.stats.caffeine + 3);
+        assert_eq!(after.stats.sweetness, before.stats.sweetness + 2);
+
+        // Half of each fee is burned, the other half goes to the treasury.
+        assert_eq!(balls.burned(), 50);
+        assert_eq!(balls.balance(&fixture.alice), 1_000 - 101);
+        assert_eq!(balls.balance(&fixture.treasury), 51);
+        assert_eq!(stars.burned(), 5);
+        assert_eq!(stars.balance(&fixture.treasury), 6);
+    }
+
+    #[test]
+    fn daily_claim_mints_the_rewards_once_per_window() {
+        let env = Env::default();
+        let fixture = deploy(&env);
+        let game = StellarTeaGameClient::new(&env, &fixture.game_id);
+        let balls = TestTokenClient::new(&env, &fixture.balls_id);
+        let stars = TestTokenClient::new(&env, &fixture.stars_id);
+
+        game.claim_daily(&fixture.alice);
+        assert!(has_topic(&env, "daily_claimed"));
+        assert_eq!(balls.balance(&fixture.alice), 2_000_000);
+        assert_eq!(stars.balance(&fixture.alice), 200_000);
+
+        // A second claim within the window is rejected.
+        let err = game.try_claim_daily(&fixture.alice).unwrap_err();
+        assert_eq!(err.unwrap(), GameError::AlreadyClaimed);
+
+        // Once the window has elapsed the claim succeeds again.
+        env.ledger().set_timestamp(CLAIM_INTERVAL + 1);
+        game.claim_daily(&fixture.alice);
+        assert_eq!(balls.balance(&fixture.alice), 4_000_000);
+    }
+}
