@@ -16,6 +16,7 @@ mod tests {
     use soroban_sdk::{testutils::Address as _, Address, Env, String, Vec};
 
     use crate::contract::TeaNftContractClient;
+    use crate::metadata;
     use crate::tea::{TeaMetadata, TeaStats};
     use crate::TeaNftContract;
 
@@ -65,5 +66,45 @@ mod tests {
         client.set_level(&operator, &token_id, &5);
         let updated = client.get_metadata(&token_id);
         assert_eq!(updated.level, 5);
+    }
+
+    #[test]
+    fn constructor_without_base_uri_reports_defaults() {
+        let env = Env::default();
+        env.mock_all_auths();
+
+        let admin = Address::generate(&env);
+        let client = init_client(&env, &admin);
+
+        assert_eq!(client.name(), String::from_str(&env, metadata::NAME));
+        assert_eq!(client.symbol(), String::from_str(&env, metadata::SYMBOL));
+
+        let token_id = client.mint(&admin, &admin, &sample_metadata(&env));
+        let expected = std::format!("{}{}", metadata::DEFAULT_BASE_URI, token_id);
+        assert_eq!(
+            client.token_uri(&(token_id as u32)),
+            String::from_str(&env, &expected)
+        );
+    }
+
+    #[test]
+    fn constructor_with_explicit_base_uri_reports_it() {
+        let env = Env::default();
+        env.mock_all_auths();
+
+        let admin = Address::generate(&env);
+        let base_uri = String::from_str(&env, "ipfs://custom-tea/");
+        let contract_id = env.register(TeaNftContract, (admin.clone(), Some(base_uri.clone())));
+        let client = TeaNftContractClient::new(&env, &contract_id);
+
+        assert_eq!(client.name(), String::from_str(&env, metadata::NAME));
+        assert_eq!(client.symbol(), String::from_str(&env, metadata::SYMBOL));
+
+        let token_id = client.mint(&admin, &admin, &sample_metadata(&env));
+        let expected = std::format!("ipfs://custom-tea/{}", token_id);
+        assert_eq!(
+            client.token_uri(&(token_id as u32)),
+            String::from_str(&env, &expected)
+        );
     }
 }
