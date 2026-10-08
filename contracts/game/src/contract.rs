@@ -886,3 +886,89 @@ impl StellarTeaGame {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod decide_winner_tests {
+    use super::*;
+    use crate::mixing::BeverageMixer;
+    use soroban_sdk::testutils::{Address as _, Ledger as _};
+
+    fn sample_offer(
+        env: &Env,
+        owner_a: Address,
+        owner_b: Option<Address>,
+        token_a_id: u64,
+    ) -> MixOffer {
+        MixOffer {
+            owner_a,
+            token_a_id,
+            owner_b,
+            token_b_id: None,
+            desired_profile: String::from_str(env, "citrus"),
+            min_rank: 0,
+            recipe_id: 1,
+            fee_balls: 100,
+            fee_stars: 0,
+            partner_fee_balls: 0,
+            partner_fee_stars: 0,
+            status: OfferStatus::WaitingForPartner,
+            created_at: env.ledger().timestamp(),
+            deadline: env.ledger().timestamp() + 10_000,
+        }
+    }
+
+    #[test]
+    fn missing_partner_is_not_ready() {
+        let env = Env::default();
+        let owner_a = Address::generate(&env);
+        let offer = sample_offer(&env, owner_a, None, 1);
+        let result = StellarTeaGame::decide_winner(&env, &offer, 2);
+        assert_eq!(result, Err(GameError::NotReady));
+    }
+
+    #[test]
+    fn winner_is_deterministic_for_a_fixed_ledger() {
+        let env = Env::default();
+        env.ledger().set_timestamp(1_700_000_000);
+        let owner_a = Address::generate(&env);
+        let partner = Address::generate(&env);
+        let offer = sample_offer(&env, owner_a.clone(), Some(partner.clone()), 1);
+
+        let first = StellarTeaGame::decide_winner(&env, &offer, 2).unwrap();
+        let second = StellarTeaGame::decide_winner(&env, &offer, 2).unwrap();
+        assert_eq!(first, second);
+
+        // The result is always the two known parties in some order.
+        let expected_a_wins = first.0 == owner_a && first.1 == partner;
+        let expected_b_wins = first.0 == partner && first.1 == owner_a;
+        assert!(expected_a_wins || expected_b_wins);
+    }
+
+    #[test]
+    fn winner_is_not_hardcoded_to_owner_a() {
+        let env = Env::default();
+        let owner_a = Address::generate(&env);
+        let partner = Address::generate(&env);
+
+        let mut owner_wins = false;
+        let mut partner_wins = false;
+        // Sweep distinct ledger timestamps; the sha256 seed is derived from the
+        // timestamp and the offer, so both orderings must occur.
+        for timestamp in 1u64..200 {
+            env.ledger().set_timestamp(timestamp);
+            let offer = sample_offer(&env, owner_a.clone(), Some(partner.clone()), 1);
+            let (winner, loser) = StellarTeaGame::decide_winner(&env, &offer, 2).unwrap();
+            if winner == owner_a && loser == partner {
+                owner_wins = true;
+            }
+            if winner == partner && loser == owner_a {
+                partner_wins = true;
+            }
+        }
+        assert!(owner_wins, "owner_a must win for at least one seed");
+        assert!(
+            partner_wins,
+            "partner must win for at least one seed (winner must not be hardcoded to owner_a)"
+        );
+    }
+}
