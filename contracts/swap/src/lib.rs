@@ -12,7 +12,7 @@ pub enum DataKey {
 }
 
 #[contracttype]
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Config {
     pub owner: Address,
     pub stars_token: Address,
@@ -128,6 +128,15 @@ impl Swap {
         Ok(())
     }
 
+    /// Mint a tea NFT through the configured `tea_contract`.
+    ///
+    /// The swap contract is registered as an operator on the tea NFT contract, so
+    /// this helper can mint without holding an input token. That operator
+    /// relationship is a trust boundary: any address that could call this
+    /// entrypoint could mint arbitrary tea metadata to any recipient and bypass
+    /// the caller-facing mint fee. It is therefore restricted to the swap
+    /// contract's configured `owner`, and rejected before the cross-contract
+    /// `mint` call for every other caller.
     pub fn mint_tea(
         env: Env,
         caller: Address,
@@ -137,6 +146,11 @@ impl Swap {
         caller.require_auth();
 
         let config = Self::config(&env)?;
+
+        if caller != config.owner {
+            return Err(SwapError::Unauthorized);
+        }
+
         let swap_address = env.current_contract_address();
 
         let args = (&swap_address, &recipient, tea_metadata.clone()).into_val(&env);
@@ -234,7 +248,7 @@ impl Swap {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use soroban_sdk::{testutils::Address as _, Address, Env, String, Vec};
+    use soroban_sdk::{testutils::Address as _, Address, Env};
 
     /// Helper: build a fresh Env with mock auth, then call init with the
     /// given owner + token addresses. Returns the (env, owner) tuple so
@@ -452,5 +466,52 @@ mod tests {
 
         let config = Swap::get_config(env.clone()).unwrap();
         assert_eq!(config.stars_token, new_stars_token);
+    }
+}
+
+
+#[cfg(test)]
+mod mint_gate_tests {
+    use super::*;
+    use soroban_sdk::{testutils::Address as _, Address, Env};
+
+    fn tea_metadata(env: &Env) -> TeaMetadata {
+        TeaMetadata {
+            display_name: String::from_str(env, "Gate Tea"),
+            flavor_profile: String::from_str(env, "citrus"),
+            rarity: 1,
+            level: 1,
+            infusion: String::from_str(env, "base"),
+            stats: TeaStats {
+                sweetness: 1,
+                body: 2,
+                caffeine: 3,
+            },
+            lineage: Vec::new(env),
+            image_uri: String::from_str(env, "ipfs://gate"),
+        }
+    }
+
+    #[test]
+    fn mint_tea_rejects_a_non_owner_caller() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let owner = Address::generate(&env);
+        let treasury = Address::generate(&env);
+        let stars_token = Address::generate(&env);
+        let xlm_token = Address::generate(&env);
+        let tea_contract = Address::generate(&env);
+        let swap_id = env.register_contract(None, Swap);
+        let client = SwapClient::new(&env, &swap_id);
+        client.init(&owner, &stars_token, &treasury, &xlm_token, &tea_contract);
+
+        let attacker = Address::generate(&env);
+        let recipient = Address::generate(&env);
+
+        let result = client.try_mint_tea(&attacker, &recipient, &tea_metadata(&env));
+        match result {
+            Err(Ok(SwapError::Unauthorized)) => {}
+            _ => panic!("expected Unauthorized"),
+        }
     }
 }
