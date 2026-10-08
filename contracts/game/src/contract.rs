@@ -309,6 +309,17 @@ impl StellarTeaGame {
         Ok(())
     }
 
+    /// Admin-only: set the total reward that may be emitted per day across all
+    /// players. `claim_daily` rejects a claim that would exceed it.
+    pub fn set_daily_cap(env: Env, amount: i128) -> Result<(), GameError> {
+        if amount <= 0 {
+            return Err(GameError::InvalidInput);
+        }
+        config::set_daily_cap(&env, amount);
+        env.events().publish(("daily_cap_set",), (amount,));
+        Ok(())
+    }
+
     pub fn burn_tokens(
         env: Env,
         from: Address,
@@ -756,12 +767,15 @@ impl StellarTeaGame {
 
         let cfg = config::get(&env);
         let limit_symbol = symbol_short!("daily");
-        limits::consume(&env, &player, &limit_symbol, 1)?;
 
+        let reward_total = DAILY_BALLS_REWARD + DAILY_STARS_REWARD;
         let daily_cap = config::daily_cap(&env).unwrap_or(i128::MAX);
-        if DAILY_BALLS_REWARD > daily_cap {
+        if config::emitted_today(&env) + reward_total > daily_cap {
             return Err(GameError::LimitExceeded);
         }
+
+        limits::consume(&env, &player, &limit_symbol, 1)?;
+        config::record_emission(&env, reward_total);
 
         util::mint(&env, &cfg.balls_token, &player, DAILY_BALLS_REWARD);
         util::mint(&env, &cfg.stars_token, &player, DAILY_STARS_REWARD);
@@ -884,5 +898,188 @@ impl StellarTeaGame {
         env.events()
             .publish(("event_created",), (event_id, stake, deadline));
         Ok(())
+    }
+}
+
+
+#[cfg(test)]
+mod daily_cap_tests {
+    extern crate std;
+
+    use super::*;
+    use crate::errors::GameError;
+    use crate::tea::{TeaMetadata, TeaStats};
+    use soroban_sdk::{contract, contractimpl, symbol_short, testutils::Address as _, Address, Env, String, Vec};
+
+    // Minimal fungible token implementing the subset of the SEP-41 surface the
+    // game contract calls: mint / balance / transfer / transfer_from / burn.
+    #[contract]
+    struct MockToken;
+
+    #[contractimpl]
+    impl MockToken {
+        pub fn mint(env: Env, to: Address, amount: i128) {
+            let key = (symbol_short!("bal"), to);
+            let current: i128 = env.storage().persistent().get(&key).unwrap_or(0);
+            env.storage().persistent().set(&key, &(current + amount));
+        }
+
+        pub fn balance(env: Env, id: Address) -> i128 {
+            env.storage()
+                .persistent()
+                .get(&(symbol_short!("bal"), id))
+                .unwrap_or(0)
+        }
+
+        pub fn transfer(_env: Env, _from: Address, _to: Address, _amount: i128) {}
+
+        pub fn transfer_from(
+            _env: Env,
+            _spender: Address,
+            _from: Address,
+            _to: Address,
+            _amount: i128,
+        ) {
+        }
+
+        pub fn burn(_env: Env, _from: Address, _amount: i128) {}
+    }
+
+    // Minimal tea NFT implementing the surface the game contract calls through
+    // `util`: mint / owner / get_metadata / set_metadata / transfer / burn_token.
+    #[contract]
+    struct MockNft;
+
+    #[contractimpl]
+    impl MockNft {
+        pub fn mint(env: Env, _caller: Address, to: Address, metadata: TeaMetadata) -> u64 {
+            let mut next: u64 = env
+                .storage()
+                .persistent()
+                .get(&symbol_short!("next"))
+                .unwrap_or(0);
+            next += 1;
+            env.storage().persistent().set(&symbol_short!("next"), &next);
+            env.storage()
+                .persistent()
+                .set(&(symbol_short!("own"), next), &to);
+            env.storage()
+                .persistent()
+                .set(&(symbol_short!("meta"), next), &metadata);
+            next
+        }
+
+        pub fn owner(env: Env, token_id: u64) -> Address {
+            env.storage()
+                .persistent()
+                .get(&(symbol_short!("own"), token_id))
+                .expect("owner")
+        }
+
+        pub fn get_metadata(env: Env, token_id: u64) -> TeaMetadata {
+            env.storage()
+                .persistent()
+                .get(&(symbol_short!("meta"), token_id))
+                .expect("metadata")
+        }
+
+        pub fn set_metadata(env: Env, _caller: Address, token_id: u64, metadata: TeaMetadata) {
+            env.storage()
+                .persistent()
+                .set(&(symbol_short!("meta"), token_id), &metadata);
+        }
+
+        pub fn transfer(env: Env, _from: Address, to: Address, token_id: u64) {
+            env.storage()
+                .persistent()
+                .set(&(symbol_short!("own"), token_id), &to);
+        }
+
+        pub fn burn_token(env: Env, _caller: Address, _owner: Address, token_id: u64) {
+            env.storage()
+                .persistent()
+                .remove(&(symbol_short!("own"), token_id));
+            env.storage()
+                .persistent()
+                .remove(&(symbol_short!("meta"), token_id));
+        }
+    }
+
+    fn deploy_game(
+        env: &Env,
+    ) -> (
+        StellarTeaGameClient<'_>,
+        Address,
+        Address,
+        Address,
+        Address,
+        Address,
+    ) {
+        let admin = Address::generate(env);
+        let treasury = Address::generate(env);
+        let balls = env.register(MockToken, ());
+        let stars = env.register(MockToken, ());
+        let nft = env.register(MockNft, ());
+        let id = env.register(
+            StellarTeaGame,
+            (
+                admin.clone(),
+                treasury.clone(),
+                balls.clone(),
+                stars.clone(),
+                nft.clone(),
+                None::<Address>,
+            ),
+        );
+        (StellarTeaGameClient::new(env, &id), admin, balls, stars, nft, id)
+    }
+
+    fn tea_metadata(env: &Env, rarity: u32, level: u32) -> TeaMetadata {
+        TeaMetadata {
+            display_name: String::from_str(env, "Test Tea"),
+            flavor_profile: String::from_str(env, "citrus"),
+            rarity,
+            level,
+            infusion: String::from_str(env, "base"),
+            stats: TeaStats {
+                sweetness: 1,
+                body: 2,
+                caffeine: 3,
+            },
+            lineage: Vec::new(env),
+            image_uri: String::from_str(env, "ipfs://test"),
+        }
+    }
+
+    #[test]
+    fn daily_cap_is_admin_configurable_and_includes_the_stars_reward() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let (client, _admin, balls, stars, _nft, _id) = deploy_game(&env);
+        let player = Address::generate(&env);
+
+        // The cap is admin-authorised: with no mocked auths the admin's
+        // signature is missing, so the call must fail.
+        env.mock_auths(&[]);
+        assert!(client.try_set_daily_cap(&2_000_000i128).is_err());
+        env.mock_all_auths();
+
+        // A cap below the combined daily reward blocks the claim.
+        client.set_daily_cap(&1_000i128);
+        let blocked = client.try_claim_daily(&player);
+        match blocked {
+            Err(Ok(GameError::LimitExceeded)) => {}
+            _ => panic!("expected LimitExceeded"),
+        }
+
+        // Raising the cap above the combined reward lets the claim through and
+        // both tokens are minted.
+        client.set_daily_cap(&3_000_000i128);
+        client.claim_daily(&player);
+
+        let balls_client = soroban_sdk::token::TokenClient::new(&env, &balls);
+        let stars_client = soroban_sdk::token::TokenClient::new(&env, &stars);
+        assert_eq!(balls_client.balance(&player), DAILY_BALLS_REWARD);
+        assert_eq!(stars_client.balance(&player), DAILY_STARS_REWARD);
     }
 }

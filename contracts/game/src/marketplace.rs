@@ -2,14 +2,14 @@ use soroban_sdk::{contracttype, Address, Env};
 
 use crate::errors::GameError;
 
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 #[contracttype]
 pub enum PaymentToken {
     Balls,
     Stars,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 #[contracttype]
 pub struct Listing {
     pub seller: Address,
