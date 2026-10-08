@@ -17,6 +17,9 @@ const BURN_FEE_BPS: i128 = 200; // 2% burn from marketplace fees
 const LOSER_COMPENSATION_PERCENT: i128 = 80;
 const TREASURY_REWARD_PERCENT: i128 = 20;
 const UPGRADE_LEVEL_INCREMENT: u32 = 1;
+/// Highest rarity tier a tea can reach. The frontend rarity mapping and the
+/// recipe catalogue use tiers 1 through 5, so upgrades stop at this tier.
+const MAX_TEA_RARITY: u32 = 5;
 const DAILY_BALLS_REWARD: i128 = 2_000_000; // 0.02 with 8 decimals
 const DAILY_STARS_REWARD: i128 = 200_000; // 0.002 with 8 decimals
 
@@ -75,7 +78,7 @@ fn compose_metadata(env: &Env, recipe: &Recipe, offer: &MixOffer) -> TeaMetadata
     TeaMetadata {
         display_name: recipe.name.clone(),
         flavor_profile: offer.desired_profile.clone(),
-        rarity: recipe.base_rarity,
+        rarity: recipe.base_rarity.min(MAX_TEA_RARITY),
         level: recipe.base_level,
         infusion: String::from_str(env, "fusion"),
         stats: recipe.base_stats.clone(),
@@ -620,7 +623,10 @@ impl StellarTeaGame {
         );
 
         let mut metadata = util::get_tea_metadata(&env, &cfg.tea_nft, nft_id);
-        metadata.level += UPGRADE_LEVEL_INCREMENT;
+        if metadata.rarity >= MAX_TEA_RARITY {
+            return Err(GameError::RarityCapped);
+        }
+        metadata.level = metadata.level.saturating_add(UPGRADE_LEVEL_INCREMENT);
         metadata.rarity += 1;
         metadata.stats.body += 5;
         metadata.stats.caffeine += 3;
@@ -884,5 +890,190 @@ impl StellarTeaGame {
         env.events()
             .publish(("event_created",), (event_id, stake, deadline));
         Ok(())
+    }
+}
+
+
+#[cfg(test)]
+mod upgrade_rarity_cap_tests {
+    extern crate std;
+
+    use super::*;
+    use crate::errors::GameError;
+    use crate::tea::{TeaMetadata, TeaStats};
+    use soroban_sdk::{contract, contractimpl, symbol_short, testutils::Address as _, Address, Env, String, Vec};
+
+    // Minimal fungible token implementing the subset of the SEP-41 surface the
+    // game contract calls: mint / balance / transfer / transfer_from / burn.
+    #[contract]
+    struct MockToken;
+
+    #[contractimpl]
+    impl MockToken {
+        pub fn mint(env: Env, to: Address, amount: i128) {
+            let key = (symbol_short!("bal"), to);
+            let current: i128 = env.storage().persistent().get(&key).unwrap_or(0);
+            env.storage().persistent().set(&key, &(current + amount));
+        }
+
+        pub fn balance(env: Env, id: Address) -> i128 {
+            env.storage()
+                .persistent()
+                .get(&(symbol_short!("bal"), id))
+                .unwrap_or(0)
+        }
+
+        pub fn transfer(_env: Env, _from: Address, _to: Address, _amount: i128) {}
+
+        pub fn transfer_from(
+            _env: Env,
+            _spender: Address,
+            _from: Address,
+            _to: Address,
+            _amount: i128,
+        ) {
+        }
+
+        pub fn burn(_env: Env, _from: Address, _amount: i128) {}
+    }
+
+    // Minimal tea NFT implementing the surface the game contract calls through
+    // `util`: mint / owner / get_metadata / set_metadata / transfer / burn_token.
+    #[contract]
+    struct MockNft;
+
+    #[contractimpl]
+    impl MockNft {
+        pub fn mint(env: Env, _caller: Address, to: Address, metadata: TeaMetadata) -> u64 {
+            let mut next: u64 = env
+                .storage()
+                .persistent()
+                .get(&symbol_short!("next"))
+                .unwrap_or(0);
+            next += 1;
+            env.storage().persistent().set(&symbol_short!("next"), &next);
+            env.storage()
+                .persistent()
+                .set(&(symbol_short!("own"), next), &to);
+            env.storage()
+                .persistent()
+                .set(&(symbol_short!("meta"), next), &metadata);
+            next
+        }
+
+        pub fn owner(env: Env, token_id: u64) -> Address {
+            env.storage()
+                .persistent()
+                .get(&(symbol_short!("own"), token_id))
+                .expect("owner")
+        }
+
+        pub fn get_metadata(env: Env, token_id: u64) -> TeaMetadata {
+            env.storage()
+                .persistent()
+                .get(&(symbol_short!("meta"), token_id))
+                .expect("metadata")
+        }
+
+        pub fn set_metadata(env: Env, _caller: Address, token_id: u64, metadata: TeaMetadata) {
+            env.storage()
+                .persistent()
+                .set(&(symbol_short!("meta"), token_id), &metadata);
+        }
+
+        pub fn transfer(env: Env, _from: Address, to: Address, token_id: u64) {
+            env.storage()
+                .persistent()
+                .set(&(symbol_short!("own"), token_id), &to);
+        }
+
+        pub fn burn_token(env: Env, _caller: Address, _owner: Address, token_id: u64) {
+            env.storage()
+                .persistent()
+                .remove(&(symbol_short!("own"), token_id));
+            env.storage()
+                .persistent()
+                .remove(&(symbol_short!("meta"), token_id));
+        }
+    }
+
+    fn deploy_game(
+        env: &Env,
+    ) -> (
+        StellarTeaGameClient<'_>,
+        Address,
+        Address,
+        Address,
+        Address,
+        Address,
+    ) {
+        let admin = Address::generate(env);
+        let treasury = Address::generate(env);
+        let balls = env.register(MockToken, ());
+        let stars = env.register(MockToken, ());
+        let nft = env.register(MockNft, ());
+        let id = env.register(
+            StellarTeaGame,
+            (
+                admin.clone(),
+                treasury.clone(),
+                balls.clone(),
+                stars.clone(),
+                nft.clone(),
+                None::<Address>,
+            ),
+        );
+        (StellarTeaGameClient::new(env, &id), admin, balls, stars, nft, id)
+    }
+
+    fn tea_metadata(env: &Env, rarity: u32, level: u32) -> TeaMetadata {
+        TeaMetadata {
+            display_name: String::from_str(env, "Test Tea"),
+            flavor_profile: String::from_str(env, "citrus"),
+            rarity,
+            level,
+            infusion: String::from_str(env, "base"),
+            stats: TeaStats {
+                sweetness: 1,
+                body: 2,
+                caffeine: 3,
+            },
+            lineage: Vec::new(env),
+            image_uri: String::from_str(env, "ipfs://test"),
+        }
+    }
+
+    #[test]
+    fn upgrade_tea_rejects_an_upgrade_at_the_rarity_cap() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let (client, _admin, _balls, _stars, nft, _id) = deploy_game(&env);
+        let nft_client = MockNftClient::new(&env, &nft);
+
+        let owner = Address::generate(&env);
+        let token_id = nft_client.mint(&owner, &owner, &tea_metadata(&env, MAX_TEA_RARITY, 1));
+
+        let result = client.try_upgrade_tea(&owner, &token_id, &100i128, &100i128);
+        match result {
+            Err(Ok(GameError::RarityCapped)) => {}
+            _ => panic!("expected RarityCapped"),
+        }
+    }
+
+    #[test]
+    fn upgrade_tea_increments_rarity_below_the_cap() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let (client, _admin, _balls, _stars, nft, _id) = deploy_game(&env);
+        let nft_client = MockNftClient::new(&env, &nft);
+
+        let owner = Address::generate(&env);
+        let token_id = nft_client.mint(&owner, &owner, &tea_metadata(&env, 1, 1));
+
+        client.upgrade_tea(&owner, &token_id, &100i128, &100i128);
+
+        let metadata = nft_client.get_metadata(&token_id);
+        assert_eq!(metadata.rarity, 2);
+        assert!(metadata.rarity <= MAX_TEA_RARITY);
     }
 }
