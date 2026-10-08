@@ -40,13 +40,17 @@ export const uploadToIPFS = async (file: File | Blob) => {
   };
 };
 
-export const uploadMetadataToIPFS = async (metadata: unknown) => {
+export const uploadMetadataToIPFS = async (
+  metadata: unknown,
+  filename?: string,
+) => {
   const client = await ensureClient();
   const payload = JSON.stringify(metadata, null, 2);
   const result: AddResult = await client.add(payload, {
     cidVersion: 1,
     pin: true,
     wrapWithDirectory: false,
+    ...(filename ? { path: filename } : {}),
   });
   const cid = result?.cid?.toString?.() ?? result?.path;
 

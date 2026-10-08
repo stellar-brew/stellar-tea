@@ -34,8 +34,9 @@ export const uploadBlobToIpfs = async (
 
 export const uploadJsonToIpfs = async (
   data: unknown,
+  filename?: string,
 ): Promise<UploadResult> => {
-  const result = await uploadMetadataToIPFS(data);
+  const result = await uploadMetadataToIPFS(data, filename);
 
   return {
     cid: result.cid,
