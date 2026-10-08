@@ -5,7 +5,7 @@ const features = [
     title: "Collect radiant NFT teas",
     description:
       "Every brew lives on-chain with rarity DNA, ingredient lineage, and tasting notes secured by Soroban smart contracts.",
-    metric: "150+ base flavors",
+    metric: "53 base flavors",
     icon: Sparkles,
   },
   {
