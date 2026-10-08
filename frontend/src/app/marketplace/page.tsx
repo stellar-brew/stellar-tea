@@ -29,17 +29,17 @@ type TokenMeta = {
 };
 
 const defaultTokenMeta: TokenMeta = {
-  BALLS: { decimals: 7, symbol: "BALLS" },
-  STARS: { decimals: 7, symbol: "STARS" },
+  BALLS: { decimals: 8, symbol: "BALLS" },
+  STARS: { decimals: 8, symbol: "STARS" },
 };
 
 const formatAmount = (value: bigint, decimals: number) => {
   const negative = value < 0n;
   const absolute = negative ? -value : value;
-  const scale = BigInt(10 ** Math.min(decimals, 7));
+  const scale = BigInt(10) ** BigInt(decimals);
   const whole = absolute / scale;
   const fraction = absolute % scale;
-  const fractionStr = fraction.toString().padStart(Number(scale.toString().length - 1), "0");
+  const fractionStr = fraction.toString().padStart(decimals, "0");
   const trimmedFraction = fractionStr.replace(/0+$/, "");
 
   const formatted = `${whole.toString()}${trimmedFraction ? `.${trimmedFraction}` : ""}`;

@@ -35,7 +35,7 @@ export default function SwapPage() {
   const [slippage, setSlippage] = useState<number>(SLIPPAGE_OPTIONS[1]);
   const [isConfirming, setIsConfirming] = useState(false);
   const [tokenMeta, setTokenMeta] = useState({
-    decimals: 7,
+    decimals: 8,
     name: "Stars",
     symbol: "STARS",
   });

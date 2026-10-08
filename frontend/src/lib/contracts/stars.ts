@@ -10,6 +10,9 @@ import { parseAmountToI128 } from "@/lib/util/tokenMath";
 type WalletSigner = SorobanSignTransaction;
 export type StarsWalletSigner = WalletSigner;
 
+/** STARS metadata decimals, matching contracts/tokens/stars/src/metadata.rs. */
+export const STARS_DECIMALS = 8;
+
 const NETWORK_DEFAULT_CONTRACT: Partial<Record<typeof stellarNetwork, string>> = {
   TESTNET: "CCSMRVZW77HXGDBVXUTDAM5MOH4AX6DS2O7CWY3TEVAUHGJFEYN7LWJP",
 };
@@ -68,7 +71,7 @@ export const createStarsClient = async (params: CreateClientParams = {}) => {
 export const fetchStarsMetadata = async () => {
   const client = await createStarsClient();
   const { result } = await client.metadata();
-  const [decimals, name, symbol] = result ?? [7, "Stars", "STARS"];
+  const [decimals, name, symbol] = result ?? [STARS_DECIMALS, "Stars", "STARS"];
 
   return {
     decimals: Number(decimals),
@@ -100,7 +103,7 @@ export const payStarsFee = async ({
   });
 
   const { result: metadataResult } = await client.metadata();
-  const decimals = Number(metadataResult?.[0] ?? 7);
+  const decimals = Number(metadataResult?.[0] ?? STARS_DECIMALS);
   const scaledAmount = parseAmountToI128(amount.toString(), decimals);
 
   try {
