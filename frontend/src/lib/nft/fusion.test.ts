@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { buildLineage, deriveFusionColorway, deriveFusionStats } from "@/lib/nft/fusion-helpers";
+import {
+  buildLineage,
+  deriveFusionColorway,
+  deriveFusionStats,
+  toLayerAssetUri,
+} from "@/lib/nft/fusion-helpers";
 import {
   buildTeaMetadata,
   type TeaColorway,
@@ -127,5 +132,14 @@ describe("fusion helpers", () => {
     expect(lineage.parents[1].palette).toEqual(["#ff00ff", "#00ffff"]);
   });
 });
+describe("toLayerAssetUri", () => {
+  it("preserves local /-rooted layer paths", () => {
+    expect(toLayerAssetUri("/nft/generate/0001.png")).toBe("/nft/generate/0001.png");
+    expect(toLayerAssetUri("/nft/generate/0010.svg")).toBe("/nft/generate/0010.svg");
+  });
 
-
+  it("prefixes bare CIDs and leaves ipfs:// URIs untouched", () => {
+    expect(toLayerAssetUri("bafybeihunter12345")).toBe("ipfs://bafybeihunter12345");
+    expect(toLayerAssetUri("ipfs://bafy123")).toBe("ipfs://bafy123");
+  });
+});
