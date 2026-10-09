@@ -776,6 +776,11 @@ impl StellarTeaGame {
         if stake < event.stake {
             return Err(GameError::InsufficientPayment);
         }
+        for participant in event.participants.iter() {
+            if participant == player {
+                return Err(GameError::AlreadyJoined);
+            }
+        }
 
         util::transfer_from(
             &env,
@@ -886,6 +891,7 @@ mod finish_event_auth_tests {
 mod daily_cap_tests {
 mod upgrade_rarity_cap_tests {
 mod upgrade_single_token_tests {
+mod join_event_tests {
     extern crate std;
 
     use super::*;
@@ -1058,6 +1064,10 @@ mod compose_metadata_tests {
         let env = Env::default();
         env.mock_all_auths();
         let (client, _admin, _balls, _stars, _nft, _id) = deploy_game(&env);
+    fn join_event_rejects_duplicate_participation() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let (client, _admin, _balls, _stars, _nft, game_id) = deploy_game(&env);
 
         let organizer = Address::generate(&env);
         client.create_event(
@@ -1235,5 +1245,18 @@ mod winner_entropy_tests {
             Err(Ok(GameError::InvalidInput)) => {}
             _ => panic!("expected InvalidInput"),
         }
+        let player = Address::generate(&env);
+        client.join_event(&player, &1u32, &100i128);
+
+        let second = client.try_join_event(&player, &1u32, &100i128);
+        match second {
+            Err(Ok(GameError::AlreadyJoined)) => {}
+            _ => panic!("expected AlreadyJoined"),
+        }
+
+        let participants = env.as_contract(&game_id, || {
+            crate::events::get(&env, 1).unwrap().participants.len()
+        });
+        assert_eq!(participants, 1);
     }
 }
