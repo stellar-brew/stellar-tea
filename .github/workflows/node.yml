@@ -117,3 +117,15 @@ jobs:
       run: "if ! git diff --exit-code -- 'packages/*/dist'; then\n  echo \"::error::Committed\
         \ packages/*/dist is out of date. Run 'pnpm --filter \\\"./packages/*\\\"\
         \ run build' and commit the result.\"\n  exit 1\nfi\n"
+  ci-ok:
+    name: CI OK
+    if: always()
+    needs:
+    - build
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+    - name: Verify every required job succeeded
+      run: "if [ \"${{ needs.build.result }}\" != \"success\" ]; then\n  echo \"::error::Required\
+        \ job 'build' did not succeed (result: ${{ needs.build.result }})\"\n  exit\
+        \ 1\nfi\necho \"All required jobs succeeded.\"\n"
