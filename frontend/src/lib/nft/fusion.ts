@@ -11,6 +11,7 @@ import {
   toLayerAssetUri,
   type FusionParentLike,
 } from "@/lib/nft/fusion-helpers";
+import type { TeaMetadata as ChainTeaMetadata } from "tea-nft-client";
 
 export type FusionParent = FusionParentLike;
 
@@ -44,6 +45,40 @@ const buildLayerSnapshots = (layers: SelectedLayer[]): LayerSnapshot[] =>
     assetUri: toLayerAssetUri(layer.variant.assetCid),
     tint: layer.tint,
   }));
+
+const rarityToCode = (rarity: string): number => {
+  switch (rarity.trim().toLowerCase()) {
+    case "uncommon":
+      return 2;
+    case "rare":
+      return 3;
+    case "epic":
+      return 4;
+    case "legendary":
+      return 5;
+    case "common":
+    default:
+      return 1;
+  }
+};
+
+const toChainMetadata = (metadata: TeaMetadata): ChainTeaMetadata => ({
+  display_name: metadata.name,
+  flavor_profile: metadata.properties.flavorProfile,
+  image_uri: metadata.image,
+  infusion: metadata.properties.infusion,
+  level: metadata.properties.rank,
+  lineage: metadata.properties.lineage.parents
+    .map((parent) => parent.tokenId)
+    .filter((tokenId): tokenId is string => Boolean(tokenId) && /^\d+$/.test(tokenId))
+    .map((tokenId) => BigInt(tokenId)),
+  rarity: rarityToCode(metadata.properties.rarity),
+  stats: {
+    body: metadata.properties.stats.body,
+    caffeine: metadata.properties.stats.caffeine,
+    sweetness: metadata.properties.stats.sweetness,
+  },
+});
 
 export const completeFusion = async ({
   seed,
@@ -103,10 +138,12 @@ export const completeFusion = async ({
     signer,
   });
 
+  const onchainMetadata = toChainMetadata(metadataPayload);
+
   const transaction = await client.mint({
     caller: address,
     to: address,
-    tea_metadata: metadataPayload,
+    tea_metadata: onchainMetadata,
   });
 
   const pendingSigners = transaction.needsNonInvokerSigningBy?.() ?? [];
