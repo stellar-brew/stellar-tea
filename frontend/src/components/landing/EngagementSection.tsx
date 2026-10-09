@@ -1,21 +1,21 @@
 const loops = [
   {
-    title: "Micro sessions",
+    title: "Daily claims",
     description:
-      "Every 4 hours, quick-tap brewing mini-games drop fresh ingredients and accelerate club progress without grinding.",
-    insight: "Avg. session length: 6m 12s with 3 on-chain actions.",
+      "Claim BALLS and STARS on a ledger-backed schedule — the limits module enforces the claim window so rewards cannot be farmed.",
+    insight: "0.02 BALLS + 0.002 STARS per claim.",
   },
   {
-    title: "Daily mastery track",
+    title: "Collaborative mixing",
     description:
-      "Mission cards rotate daily to teach wallet signatures, swaps, and staking. Players earn badges that unlock décor perks.",
-    insight: "Mission completion lifts 7-day retention by 34%.",
+      "Partner up on a mix offer, escrow both teas, and co-sign the Soroban transaction that burns the inputs and mints an upgraded fusion with recorded lineage.",
+    insight: "The losing brewer still receives 80% of the fee.",
   },
   {
-    title: "Seasonal showdowns",
+    title: "Upgrades and marketplace",
     description:
-      "Team up for leaderboard pushes with themed recipes and shared vault staking. Winners take home exclusive fusions.",
-    insight: "Season finales drive 4x marketplace volume.",
+      "Spend tokens to level a tea up, or list it on the custodial marketplace where sales settle instantly and 2% of every fee is burned.",
+    insight: "50% of upgrade spend is burned, 50% goes to treasury.",
   },
 ];
 
