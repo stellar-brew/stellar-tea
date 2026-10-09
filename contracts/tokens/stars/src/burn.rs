@@ -4,7 +4,6 @@ use stellar_tokens::fungible::Base;
 use crate::admin;
 
 pub fn burn(env: &Env, from: &Address, amount: i128) {
-    from.require_auth();
     Base::burn(env, from, amount);
 }
 
