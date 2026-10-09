@@ -72,7 +72,7 @@ fn compose_metadata(env: &Env, recipe: &Recipe, offer: &MixOffer) -> TeaMetadata
     }
     TeaMetadata {
         display_name: recipe.name.clone(),
-        flavor_profile: offer.desired_profile.clone(),
+        flavor_profile: recipe.flavor_profile.clone(),
         rarity: recipe.base_rarity,
         level: recipe.base_level,
         infusion: String::from_str(env, "fusion"),
@@ -1009,6 +1009,26 @@ mod daily_cap_tests {
             level,
             infusion: String::from_str(env, "base"),
             stats: TeaStats {
+mod compose_metadata_tests {
+    extern crate std;
+
+    use super::*;
+    use crate::mixing::{MixOffer, OfferStatus};
+    use crate::tea::TeaStats;
+    use soroban_sdk::{testutils::Address as _, Address, Env, String};
+
+    #[test]
+    fn compose_metadata_takes_fields_from_the_recipe() {
+        let env = Env::default();
+        let recipe = Recipe {
+            id: 1,
+            name: String::from_str(&env, "Fusion"),
+            flavor_profile: String::from_str(&env, "jasmine"),
+            base_level: 2,
+            base_rarity: 3,
+            balls_cost: 0,
+            stars_cost: 0,
+            base_stats: TeaStats {
                 sweetness: 1,
                 body: 2,
                 caffeine: 3,
@@ -1077,6 +1097,13 @@ mod winner_entropy_tests {
             token_a_id: 1,
             owner_b: Some(owner_b.clone()),
             token_b_id: Some(2),
+            image_uri: String::from_str(&env, "ipfs://recipe"),
+        };
+        let offer = MixOffer {
+            owner_a: Address::generate(&env),
+            token_a_id: 10,
+            owner_b: Some(Address::generate(&env)),
+            token_b_id: Some(20),
             desired_profile: String::from_str(&env, "citrus"),
             min_rank: 1,
             recipe_id: 1,
@@ -1135,5 +1162,12 @@ mod winner_entropy_tests {
         let stars_client = soroban_sdk::token::TokenClient::new(&env, &stars);
         assert_eq!(balls_client.balance(&player), DAILY_BALLS_REWARD);
         assert_eq!(stars_client.balance(&player), DAILY_STARS_REWARD);
+        let metadata = compose_metadata(&env, &recipe, &offer);
+
+        assert_eq!(metadata.flavor_profile, recipe.flavor_profile);
+        assert_eq!(metadata.display_name, recipe.name);
+        assert_eq!(metadata.rarity, recipe.base_rarity);
+        assert_eq!(metadata.level, recipe.base_level);
+        assert_eq!(metadata.lineage.len(), 2);
     }
 }
