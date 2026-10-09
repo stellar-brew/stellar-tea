@@ -81,7 +81,7 @@ export type OwnedTeaToken = {
 const resolveGatewayBase = () =>
   (process.env.NEXT_PUBLIC_IPFS_GATEWAY_URL ?? "https://ipfs.filebase.io").replace(/\/$/, "");
 
-const toGatewayUrl = (uri: string) => {
+export const toGatewayUrl = (uri: string) => {
   if (!uri) return uri;
   if (uri.startsWith("ipfs://")) {
     const path = uri.slice("ipfs://".length);
