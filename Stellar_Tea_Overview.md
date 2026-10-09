@@ -68,7 +68,7 @@ Stellar Tea is a billion-scale blueprint for social play-to-earn entertainment t
 
 **Observability.** Uniform event schemas across contracts power real-time dashboards, anomaly detection, and revenue attribution. Exchanges can monitor swap volumes, guilds can track fusion success rates, and data teams can model retention without bespoke indexers.
 
-**Resilience.** Cross-contract invocations rely on Soroban’s transactional guarantees, ensuring atomic completion or graceful rollback. Extensive unit snapshots (see `contracts/game/test_snapshots`) guard against regression when tuning fees or stat curves.
+**Resilience.** Cross-contract invocations rely on Soroban’s transactional guarantees, ensuring atomic completion or graceful rollback. Regression protection comes from the `#[cfg(test)]` unit suites committed alongside each module — `contracts/game/src/{mixing,marketplace,limits,events}.rs`, `contracts/nft-tea/src/lib.rs`, `contracts/swap/src/lib.rs` and `contracts/tokens/{balls,stars}/src/lib.rs`.
 
 ## Adoption Levers and Extensions
 
