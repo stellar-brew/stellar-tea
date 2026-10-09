@@ -59,6 +59,37 @@ jobs:
     - run: npm run build
     - name: Run tests
       run: npm test --if-present
+    - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+    - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1
+    - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+      with:
+        node-version: 20
+        cache: pnpm
+    - uses: actions/cache@v3
+      with:
+        path: '~/.cargo/bin/
+
+          runner/.cargo/bin/
+
+          ~/.cargo/registry/index/
+
+          ~/.cargo/registry/cache/
+
+          ~/.cargo/git/db/
+
+          target/
+
+          '
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+    - name: Install cargo-binstall
+      uses: cargo-bins/cargo-binstall@v1.15.6
+    - run: pnpm install --frozen-lockfile
+    - run: pnpm run lint
+    - run: pnpm exec prettier . --check
+    - run: pnpm run install:contracts
+    - run: pnpm run build
+    - name: Run tests
+      run: pnpm test --if-present
   verify-clients:
     name: Verify workspace client deps
     runs-on: ubuntu-latest

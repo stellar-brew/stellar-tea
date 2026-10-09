@@ -1,15 +1,18 @@
 {
-	"name": "stellar-tea",
-	"type": "module",
-	"version": "0.0.1",
-	"packageManager": "pnpm@10.6.2",
-	"private": true,
-	"scripts": {
-		"install:contracts": "pnpm --filter \"./packages/*\" install && pnpm --filter \"./packages/*\" run --if-present build",
-		"format": "prettier . --write"
-	},
-	"dependencies": {},
-	"devDependencies": {
-		"prettier": "3.6.2"
-	}
+  "name": "stellar-tea",
+  "type": "module",
+  "version": "0.0.1",
+  "packageManager": "pnpm@10.6.2",
+  "private": true,
+  "scripts": {
+    "install:contracts": "pnpm --filter \"./packages/*\" install && pnpm --filter \"./packages/*\" run --if-present build",
+    "lint": "pnpm --filter frontend run lint",
+    "test": "pnpm --filter frontend run test",
+    "build": "pnpm --filter \"./packages/*\" run --if-present build && pnpm --filter frontend run build",
+    "format": "prettier . --write"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "prettier": "3.6.2"
+  }
 }
