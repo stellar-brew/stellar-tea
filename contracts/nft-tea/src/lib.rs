@@ -83,6 +83,9 @@ mod tests {
 
     #[test]
     fn reading_metadata_after_burn_returns_a_typed_error() {
+    fn admin_can_sweep_tokens_sent_to_the_contract() {
+        use soroban_sdk::token;
+
         let env = Env::default();
         env.mock_all_auths();
 
@@ -111,5 +114,18 @@ mod tests {
             client.try_set_level(&admin, &999, &5),
             Err(Ok(Error::MetadataNotFound))
         ));
+        let recipient = Address::generate(&env);
+        let contract_id = env.register(TeaNftContract, (admin.clone(), None::<String>));
+        let client = TeaNftContractClient::new(&env, &contract_id);
+
+        let asset = env.register_stellar_asset_contract_v2(admin.clone());
+        let asset_address = asset.address();
+        token::StellarAssetClient::new(&env, &asset_address).mint(&contract_id, &1_000);
+
+        client.sweep(&asset_address, &recipient, &400);
+
+        let token_client = token::TokenClient::new(&env, &asset_address);
+        assert_eq!(token_client.balance(&contract_id), 600);
+        assert_eq!(token_client.balance(&recipient), 400);
     }
 }
