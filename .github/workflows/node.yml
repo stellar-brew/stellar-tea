@@ -90,6 +90,29 @@ jobs:
     - run: pnpm run build
     - name: Run tests
       run: pnpm test --if-present
+    - uses: actions/checkout@v4
+    - name: Check for stellar-scaffold binary
+      timeout-minutes: 10
+      run: "if ! command -v stellar-scaffold &> /dev/null; then\n  echo \"stellar-scaffold\
+        \ not found, installing...\"\n  cargo binstall stellar-scaffold-cli\nelse\n\
+        \  echo \"stellar-scaffold already installed. Clear cache to force reinstall.\"\
+        \nfi\n"
+    - name: Install dependencies
+      run: npm ci
+      timeout-minutes: 10
+    - name: Build clients before building the project
+      run: STELLAR_SCAFFOLD_ENV=development stellar-scaffold build --build-clients
+      timeout-minutes: 15
+    - name: Install contract clients
+      run: npm run install:contracts
+      timeout-minutes: 10
+    - name: Build project
+      run: npm run build
+      timeout-minutes: 15
+    - name: Run tests
+      run: npm test --if-present
+      timeout-minutes: 15
+    timeout-minutes: 30
   verify-clients:
     name: Verify workspace client deps
     runs-on: ubuntu-latest
