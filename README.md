@@ -248,7 +248,7 @@ Seasonal engagement mechanic:
 
 * Browser-side PNG layer compositing
 * IPFS uploads via Filebase
-* 50 flavor palettes with tasting notes
+* 53 flavor palettes with tasting notes
 * Deterministic metadata generation
 
 #### **Fusion Orchestration**

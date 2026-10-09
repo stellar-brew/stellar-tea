@@ -44,7 +44,7 @@ pnpm test      # vitest unit tests for fusion helpers
 
 ## Flavours & Metadata
 
-- `src/lib/nft/flavors.ts` — palette of 50 saturated colours with flavour names and tasting notes.
+- `src/lib/nft/flavors.ts` — palette of 53 saturated colours with flavour names and tasting notes.
 - `src/lib/nft/metadataTemplate.ts` — helper that assembles titles, descriptions and infusions from the selected swatch.
 - `src/lib/nft/generator.ts` + `src/lib/nft/generateLocal.ts` — compose layers (base PNGs, SVG mask, topping, frame, highlights).
 - `src/lib/contracts/stars.ts` — handles the 150 STARS transfer before minting.
