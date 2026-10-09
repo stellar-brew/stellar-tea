@@ -1,69 +1,69 @@
 name: Build and Test
-
 on:
   push:
-    branches: ["main"]
-  pull_request:
-
+    branches:
+    - main
+  pull_request: null
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
-
 env:
   CARGO_TERM_COLOR: always
   PKG_CONFIG_PATH: /usr/lib/pkgconfig
   NEXT_PUBLIC_STELLAR_NETWORK: LOCAL
-  NEXT_PUBLIC_STELLAR_NETWORK_PASSPHRASE: "Standalone Network ; February 2017"
+  NEXT_PUBLIC_STELLAR_NETWORK_PASSPHRASE: Standalone Network ; February 2017
   NEXT_PUBLIC_STELLAR_RPC_URL: http://localhost:8000/rpc
   NEXT_PUBLIC_STELLAR_HORIZON_URL: http://localhost:8000
-
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
-        with:
-          path: |
-            ~/.cargo/bin/
-            runner/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-      - run: rustup target add wasm32v1-none
-      - name: Start Stellar Quickstart
-        uses: stellar/quickstart@main
-        with:
-          tag: testing
-          network: local
-      - run: sudo apt-get update && sudo apt-get install -y libudev-dev libdbus-1-dev pkg-config
-      - name: Install cargo-binstall
-        uses: cargo-bins/cargo-binstall@v1.15.6
-      - name: Check for stellar-scaffold binary
-        run: |
-          if ! command -v stellar-scaffold &> /dev/null; then
-            echo "stellar-scaffold not found, installing..."
-            cargo binstall stellar-scaffold-cli
-          else
-            echo "stellar-scaffold already installed. Clear cache to force reinstall."
-          fi
-      - run: npm ci
-      - run: npm run lint
-      - run: npx prettier . --check
-      - name: Build clients before building the project
-        run: STELLAR_SCAFFOLD_ENV=development stellar-scaffold build --build-clients
-      - run: npm run install:contracts
-      - run: npm run build
-      - name: Run tests
-        run: npm test --if-present
+    - uses: actions/checkout@v7
+    - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      with:
+        path: '~/.cargo/bin/
 
+          runner/.cargo/bin/
+
+          ~/.cargo/registry/index/
+
+          ~/.cargo/registry/cache/
+
+          ~/.cargo/git/db/
+
+          target/
+
+          '
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+    - run: rustup target add wasm32v1-none
+    - name: Start Stellar Quickstart
+      uses: stellar/quickstart@main
+      with:
+        tag: testing
+        network: local
+    - run: sudo apt-get update && sudo apt-get install -y libudev-dev libdbus-1-dev
+        pkg-config
+    - name: Install cargo-binstall
+      uses: cargo-bins/cargo-binstall@v1.25.2
+    - name: Check for stellar-scaffold binary
+      run: "if ! command -v stellar-scaffold &> /dev/null; then\n  echo \"stellar-scaffold\
+        \ not found, installing...\"\n  cargo binstall stellar-scaffold-cli\nelse\n\
+        \  echo \"stellar-scaffold already installed. Clear cache to force reinstall.\"\
+        \nfi\n"
+    - run: npm ci
+    - run: npm run lint
+    - run: npx prettier . --check
+    - name: Build clients before building the project
+      run: STELLAR_SCAFFOLD_ENV=development stellar-scaffold build --build-clients
+    - run: npm run install:contracts
+    - run: npm run build
+    - name: Run tests
+      run: npm test --if-present
   verify-clients:
     name: Verify workspace client deps
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - name: Verify every workspace:* dependency resolves
-        run: node .github/scripts/verify-workspace-deps.mjs
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+    - name: Verify every workspace:* dependency resolves
+      run: node .github/scripts/verify-workspace-deps.mjs
