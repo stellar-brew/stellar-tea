@@ -178,3 +178,16 @@ jobs:
       run: pnpm install --frozen-lockfile
     - name: Build frontend
       run: pnpm --filter frontend build
+  secret-scan:
+    name: Secret scanning (gitleaks)
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+    - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      with:
+        fetch-depth: 0
+    - name: Run gitleaks
+      uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
