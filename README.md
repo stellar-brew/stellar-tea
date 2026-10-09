@@ -288,7 +288,7 @@ src/
 * Rust & Cargo
 * Soroban compilation target (`wasm32v1-none`), added with `rustup target add wasm32v1-none`
 * Node.js ≥ 22
-* pnpm
+* pnpm (enable it with `corepack enable pnpm`)
 * Stellar CLI
 * Scaffold Stellar CLI Plugin
 
@@ -322,7 +322,8 @@ NEXT_PUBLIC_IPFS_GATEWAY_URL=https://ipfs.filebase.io
 #### 3. Install Dependencies
 
 ```bash
-npm install
+corepack enable pnpm
+pnpm install
 ```
 
 #### 4. Configure Network
@@ -332,10 +333,10 @@ Edit `environments.toml` for development/testnet/mainnet setup.
 #### 5. Start Development
 
 ```bash
-npm run dev
+pnpm --filter frontend dev
 ```
 
-App runs at `http://localhost:3000`.
+The Next.js app runs at `http://localhost:3000`.
 
 ---
 
