@@ -545,57 +545,62 @@ impl StellarTeaGame {
         stars: i128,
     ) -> Result<(), GameError> {
         ensure_authorized_player(&env, &owner)?;
-        assert_payment(balls)?;
-        assert_payment(stars)?;
+        if balls < 0 || stars < 0 || (balls == 0 && stars == 0) {
+            return Err(GameError::InvalidInput);
+        }
         let cfg = config::get(&env);
         let token_owner = util::owner_of(&env, &cfg.tea_nft, nft_id);
         if token_owner != owner {
             return Err(GameError::NotOwner);
         }
 
-        util::transfer_from(
-            &env,
-            &cfg.balls_token,
-            &owner,
-            &env.current_contract_address(),
-            balls,
-        );
-        util::transfer_from(
-            &env,
-            &cfg.stars_token,
-            &owner,
-            &env.current_contract_address(),
-            stars,
-        );
+        if balls > 0 {
+            util::transfer_from(
+                &env,
+                &cfg.balls_token,
+                &owner,
+                &env.current_contract_address(),
+                balls,
+            );
+            let burn_balls = balls / 2;
+            util::burn(
+                &env,
+                &cfg.balls_token,
+                &env.current_contract_address(),
+                burn_balls,
+            );
+            util::transfer(
+                &env,
+                &cfg.balls_token,
+                &env.current_contract_address(),
+                &cfg.treasury,
+                balls - burn_balls,
+            );
+        }
 
-        let burn_balls = balls / 2;
-        let burn_stars = stars / 2;
-        util::burn(
-            &env,
-            &cfg.balls_token,
-            &env.current_contract_address(),
-            burn_balls,
-        );
-        util::burn(
-            &env,
-            &cfg.stars_token,
-            &env.current_contract_address(),
-            burn_stars,
-        );
-        util::transfer(
-            &env,
-            &cfg.balls_token,
-            &env.current_contract_address(),
-            &cfg.treasury,
-            balls - burn_balls,
-        );
-        util::transfer(
-            &env,
-            &cfg.stars_token,
-            &env.current_contract_address(),
-            &cfg.treasury,
-            stars - burn_stars,
-        );
+        if stars > 0 {
+            util::transfer_from(
+                &env,
+                &cfg.stars_token,
+                &owner,
+                &env.current_contract_address(),
+                stars,
+            );
+            let burn_stars = stars / 2;
+            util::burn(
+                &env,
+                &cfg.stars_token,
+                &env.current_contract_address(),
+                burn_stars,
+            );
+            util::transfer(
+                &env,
+                &cfg.stars_token,
+                &env.current_contract_address(),
+                &cfg.treasury,
+                stars - burn_stars,
+            );
+        }
 
         let mut metadata = util::get_tea_metadata(&env, &cfg.tea_nft, nft_id);
         if metadata.rarity >= MAX_TEA_RARITY {
@@ -880,6 +885,7 @@ impl StellarTeaGame {
 mod finish_event_auth_tests {
 mod daily_cap_tests {
 mod upgrade_rarity_cap_tests {
+mod upgrade_single_token_tests {
     extern crate std;
 
     use super::*;
@@ -1179,6 +1185,7 @@ mod winner_entropy_tests {
         assert_eq!(metadata.level, recipe.base_level);
         assert_eq!(metadata.lineage.len(), 2);
     fn upgrade_tea_rejects_an_upgrade_at_the_rarity_cap() {
+    fn upgrade_tea_accepts_a_single_payment_token() {
         let env = Env::default();
         env.mock_all_auths();
         let (client, _admin, _balls, _stars, nft, _id) = deploy_game(&env);
@@ -1196,6 +1203,20 @@ mod winner_entropy_tests {
 
     #[test]
     fn upgrade_tea_increments_rarity_below_the_cap() {
+        let token_id = nft_client.mint(&owner, &owner, &tea_metadata(&env, 1, 1));
+
+        // BALLS only
+        client.upgrade_tea(&owner, &token_id, &100i128, &0i128);
+        // STARS only
+        client.upgrade_tea(&owner, &token_id, &0i128, &100i128);
+
+        let metadata = nft_client.get_metadata(&token_id);
+        assert_eq!(metadata.level, 3);
+        assert_eq!(metadata.rarity, 3);
+    }
+
+    #[test]
+    fn upgrade_tea_rejects_an_empty_payment() {
         let env = Env::default();
         env.mock_all_auths();
         let (client, _admin, _balls, _stars, nft, _id) = deploy_game(&env);
@@ -1209,5 +1230,10 @@ mod winner_entropy_tests {
         let metadata = nft_client.get_metadata(&token_id);
         assert_eq!(metadata.rarity, 2);
         assert!(metadata.rarity <= MAX_TEA_RARITY);
+        let result = client.try_upgrade_tea(&owner, &token_id, &0i128, &0i128);
+        match result {
+            Err(Ok(GameError::InvalidInput)) => {}
+            _ => panic!("expected InvalidInput"),
+        }
     }
 }
