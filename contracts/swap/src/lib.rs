@@ -1,7 +1,7 @@
 #![no_std]
 
 use soroban_sdk::{
-    contract, contracterror, contractimpl, contracttype, symbol_short, token, Address, Env,
+    contract, contracterror, contractimpl, contracttype, symbol_short, token, Address, Env, Symbol,
     IntoVal, String, Vec,
 };
 
@@ -21,6 +21,11 @@ pub struct Config {
     pub xlm_token: Address,
     pub tea_contract: Address,
 }
+
+/// Default XLM -> STARS rate (24.5 STARS per XLM), matching the value the
+/// frontend previously hard-coded. Stored on-chain so it can be governed.
+const DEFAULT_STARS_PER_XLM_NUM: i128 = 245;
+const DEFAULT_STARS_PER_XLM_DEN: i128 = 10;
 
 #[contracttype]
 #[derive(Clone)]
@@ -83,6 +88,10 @@ impl Swap {
         };
 
         storage.set(&DataKey::Config, &config);
+        env.storage().persistent().set(
+            &symbol_short!("rate"),
+            &(DEFAULT_STARS_PER_XLM_NUM, DEFAULT_STARS_PER_XLM_DEN),
+        );
 
         env.events().publish(
             ("swap_init",),
@@ -94,6 +103,44 @@ impl Swap {
 
     pub fn get_config(env: Env) -> Result<Config, SwapError> {
         Self::config(&env)
+    }
+
+    /// The admin-configured XLM -> STARS rate as a `(num, den)` pair.
+    pub fn rate(env: Env) -> (i128, i128) {
+        env.storage()
+            .persistent()
+            .get::<Symbol, (i128, i128)>(&symbol_short!("rate"))
+            .unwrap_or((DEFAULT_STARS_PER_XLM_NUM, DEFAULT_STARS_PER_XLM_DEN))
+    }
+
+    /// Updates the XLM -> STARS rate. Owner-guarded; both parts must be positive.
+    pub fn set_rate(
+        env: Env,
+        owner: Address,
+        stars_per_xlm_num: i128,
+        stars_per_xlm_den: i128,
+    ) -> Result<(), SwapError> {
+        let config = Self::config(&env)?;
+        if owner != config.owner {
+            return Err(SwapError::Unauthorized);
+        }
+        owner.require_auth();
+
+        if stars_per_xlm_num <= 0 || stars_per_xlm_den <= 0 {
+            return Err(SwapError::InvalidAmount);
+        }
+
+        env.storage().persistent().set(
+            &symbol_short!("rate"),
+            &(stars_per_xlm_num, stars_per_xlm_den),
+        );
+
+        env.events().publish(
+            ("swap_rate_updated",),
+            (stars_per_xlm_num, stars_per_xlm_den),
+        );
+
+        Ok(())
     }
 
     pub fn swap(
@@ -274,17 +321,17 @@ impl Swap {
             .ok_or(SwapError::RateNotSet)
     }
 }
-
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use soroban_sdk::{testutils::Address as _, Address, Env};
 
-    /// Helper: build a fresh Env with mock auth, then call init with the
-    /// given owner + token addresses. Returns the (env, owner) tuple so
-    /// the test can call subsequent contract methods.
-    fn env_with_init() -> (Env, Address, Address, Address, Address, Address) {
+    // Contract storage is only reachable from inside a contract frame, so every
+    // storage-touching call below is wrapped in `env.as_contract(&contract_id, ..)`.
+
+    /// Registers a fresh Swap contract and initialises it with random addresses.
+    /// Returns (env, contract_id, owner, stars_token, treasury, xlm_token, tea_contract).
+    fn env_with_init() -> (Env, Address, Address, Address, Address, Address, Address) {
         let env = Env::default();
         env.mock_all_auths();
 
@@ -294,17 +341,20 @@ mod tests {
         let xlm_token = Address::generate(&env);
         let tea_contract = Address::generate(&env);
 
-        let result = Swap::init(
-            env.clone(),
-            owner.clone(),
-            stars_token.clone(),
-            treasury.clone(),
-            xlm_token.clone(),
-            tea_contract.clone(),
-        );
-        assert!(result.is_ok());
+        let contract_id = env.register(Swap, ());
+        env.as_contract(&contract_id, || {
+            let result = Swap::init(
+                env.clone(),
+                owner.clone(),
+                stars_token.clone(),
+                treasury.clone(),
+                xlm_token.clone(),
+                tea_contract.clone(),
+            );
+            assert!(result.is_ok());
+        });
 
-        (env, owner, stars_token, treasury, xlm_token, tea_contract)
+        (env, contract_id, owner, stars_token, treasury, xlm_token, tea_contract)
     }
 
     // -----------------------------------------------------------------------
@@ -314,20 +364,22 @@ mod tests {
     #[test]
     fn init_called_twice_returns_already_initialized() {
         // The bounty spec: "init twice returns Err(SwapError::AlreadyInitialized)."
-        // Note: the check `if storage.has(&DataKey::Config)` happens BEFORE
+        // The `if storage.has(&DataKey::Config)` check runs BEFORE
         // `owner.require_auth()`, so the second call short-circuits with
         // AlreadyInitialized regardless of auth state.
-        let (env, owner, stars_token, treasury, xlm_token, tea_contract) = env_with_init();
+        let (env, contract_id, owner, stars_token, treasury, xlm_token, tea_contract) =
+            env_with_init();
 
-        // Second call — same owner, same args — should return AlreadyInitialized.
-        let second = Swap::init(
-            env.clone(),
-            owner.clone(),
-            stars_token.clone(),
-            treasury.clone(),
-            xlm_token.clone(),
-            tea_contract.clone(),
-        );
+        let second = env.as_contract(&contract_id, || {
+            Swap::init(
+                env.clone(),
+                owner.clone(),
+                stars_token.clone(),
+                treasury.clone(),
+                xlm_token.clone(),
+                tea_contract.clone(),
+            )
+        });
         assert_eq!(second, Err(SwapError::AlreadyInitialized));
     }
 
@@ -338,7 +390,7 @@ mod tests {
     #[test]
     fn swap_with_zero_xlm_amount_returns_invalid_amount() {
         // The bounty spec: "swap with a non-positive xlm_amount returns Err(SwapError::InvalidAmount)."
-        // The check is the FIRST line of swap(), so we don't need init/config/auth.
+        // The check is the FIRST line of swap(), so no contract frame is needed.
         let env = Env::default();
         let initiator = Address::generate(&env);
         let recipient = Address::generate(&env);
@@ -347,8 +399,8 @@ mod tests {
             env.clone(),
             initiator,
             recipient,
-            100,   // stars_amount — non-zero
-            0,     // xlm_amount — zero
+            100, // stars_amount — non-zero
+            0,   // xlm_amount — zero
         );
         assert_eq!(result, Err(SwapError::InvalidAmount));
     }
@@ -365,8 +417,8 @@ mod tests {
             env.clone(),
             initiator,
             recipient,
-            0,     // stars_amount — zero
-            100,   // xlm_amount — non-zero (so the xlm check passes)
+            0,   // stars_amount — zero
+            100, // xlm_amount — non-zero (so the xlm check passes)
         );
         assert_eq!(result, Err(SwapError::InvalidAmount));
     }
@@ -378,13 +430,7 @@ mod tests {
         let initiator = Address::generate(&env);
         let recipient = Address::generate(&env);
 
-        let result = Swap::swap(
-            env.clone(),
-            initiator,
-            recipient,
-            100,
-            -50,   // xlm_amount — negative
-        );
+        let result = Swap::swap(env.clone(), initiator, recipient, 100, -50);
         assert_eq!(result, Err(SwapError::InvalidAmount));
     }
 
@@ -394,13 +440,7 @@ mod tests {
         let initiator = Address::generate(&env);
         let recipient = Address::generate(&env);
 
-        let result = Swap::swap(
-            env.clone(),
-            initiator,
-            recipient,
-            -50,   // stars_amount — negative
-            100,
-        );
+        let result = Swap::swap(env.clone(), initiator, recipient, -50, 100);
         assert_eq!(result, Err(SwapError::InvalidAmount));
     }
 
@@ -411,49 +451,43 @@ mod tests {
     #[test]
     fn set_token_with_non_owner_returns_unauthorized() {
         // The bounty spec: "Each set_* setter rejects a caller that is not config.owner with Unauthorized."
-        // The check `if owner != config.owner` happens BEFORE `owner.require_auth()`,
-        // so a non-owner caller gets Unauthorized without triggering auth.
-        let (env, _owner, _stars_token, _treasury, _xlm_token, _tea_contract) = env_with_init();
+        let (env, contract_id, _owner, _stars_token, _treasury, _xlm_token, _tea_contract) =
+            env_with_init();
 
-        // A non-owner address (different from the owner used in init)
         let non_owner = Address::generate(&env);
         let new_stars_token = Address::generate(&env);
 
-        let result = Swap::set_token(
-            env.clone(),
-            non_owner,            // not the configured owner
-            new_stars_token,
-        );
+        let result = env.as_contract(&contract_id, || {
+            Swap::set_token(env.clone(), non_owner.clone(), new_stars_token.clone())
+        });
         assert_eq!(result, Err(SwapError::Unauthorized));
     }
 
     #[test]
     fn set_treasury_with_non_owner_returns_unauthorized() {
-        let (env, _owner, _stars_token, _treasury, _xlm_token, _tea_contract) = env_with_init();
+        let (env, contract_id, _owner, _stars_token, _treasury, _xlm_token, _tea_contract) =
+            env_with_init();
 
         let non_owner = Address::generate(&env);
         let new_treasury = Address::generate(&env);
 
-        let result = Swap::set_treasury(
-            env.clone(),
-            non_owner,
-            new_treasury,
-        );
+        let result = env.as_contract(&contract_id, || {
+            Swap::set_treasury(env.clone(), non_owner.clone(), new_treasury.clone())
+        });
         assert_eq!(result, Err(SwapError::Unauthorized));
     }
 
     #[test]
     fn set_xlm_token_with_non_owner_returns_unauthorized() {
-        let (env, _owner, _stars_token, _treasury, _xlm_token, _tea_contract) = env_with_init();
+        let (env, contract_id, _owner, _stars_token, _treasury, _xlm_token, _tea_contract) =
+            env_with_init();
 
         let non_owner = Address::generate(&env);
         let new_xlm_token = Address::generate(&env);
 
-        let result = Swap::set_xlm_token(
-            env.clone(),
-            non_owner,
-            new_xlm_token,
-        );
+        let result = env.as_contract(&contract_id, || {
+            Swap::set_xlm_token(env.clone(), non_owner.clone(), new_xlm_token.clone())
+        });
         assert_eq!(result, Err(SwapError::Unauthorized));
     }
 
@@ -463,11 +497,13 @@ mod tests {
 
     #[test]
     fn get_config_after_init_returns_the_stored_config() {
-        // Sanity: after init, get_config returns the Config we stored — confirms
-        // the init in env_with_init() actually persisted.
-        let (env, owner, stars_token, treasury, xlm_token, tea_contract) = env_with_init();
+        // Sanity: after init, get_config returns the Config we stored.
+        let (env, contract_id, owner, stars_token, treasury, xlm_token, tea_contract) =
+            env_with_init();
 
-        let config = Swap::get_config(env.clone()).expect("config should be set after init");
+        let config = env
+            .as_contract(&contract_id, || Swap::get_config(env.clone()))
+            .expect("config should be set after init");
         assert_eq!(config.owner, owner);
         assert_eq!(config.stars_token, stars_token);
         assert_eq!(config.treasury, treasury);
@@ -479,8 +515,9 @@ mod tests {
     fn get_config_before_init_returns_not_initialized() {
         // Without init, get_config returns NotInitialized (config() short-circuits).
         let env = Env::default();
-        let result = Swap::get_config(env.clone());
-        assert_eq!(result, Err(SwapError::NotInitialized));
+        let contract_id = env.register(Swap, ());
+        let result = env.as_contract(&contract_id, || Swap::get_config(env.clone()));
+        assert!(matches!(result, Err(SwapError::NotInitialized)));
     }
 
     // -----------------------------------------------------------------------
@@ -489,14 +526,77 @@ mod tests {
 
     #[test]
     fn set_token_with_owner_succeeds_and_updates_config() {
-        let (env, owner, _stars_token, _treasury, _xlm_token, _tea_contract) = env_with_init();
+        let (env, contract_id, owner, _stars_token, _treasury, _xlm_token, _tea_contract) =
+            env_with_init();
         let new_stars_token = Address::generate(&env);
 
-        let result = Swap::set_token(env.clone(), owner.clone(), new_stars_token.clone());
+        let result = env.as_contract(&contract_id, || {
+            Swap::set_token(env.clone(), owner.clone(), new_stars_token.clone())
+        });
         assert!(result.is_ok());
 
-        let config = Swap::get_config(env.clone()).unwrap();
+        let config = env
+            .as_contract(&contract_id, || Swap::get_config(env.clone()))
+            .expect("config should be set after init");
         assert_eq!(config.stars_token, new_stars_token);
+    }
+
+    // -----------------------------------------------------------------------
+    // rate / set_rate
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn init_sets_the_default_rate() {
+        let (env, contract_id, ..) = env_with_init();
+        assert_eq!(
+            env.as_contract(&contract_id, || Swap::rate(env.clone())),
+            (245, 10)
+        );
+    }
+
+    #[test]
+    fn set_rate_with_non_owner_returns_unauthorized() {
+        let (env, contract_id, _owner, _stars_token, _treasury, _xlm_token, _tea_contract) =
+            env_with_init();
+        let non_owner = Address::generate(&env);
+
+        let result =
+            env.as_contract(&contract_id, || Swap::set_rate(env.clone(), non_owner.clone(), 30, 1));
+        assert_eq!(result, Err(SwapError::Unauthorized));
+    }
+
+    #[test]
+    fn set_rate_with_owner_updates_the_rate() {
+        let (env, contract_id, owner, _stars_token, _treasury, _xlm_token, _tea_contract) =
+            env_with_init();
+
+        let result = env.as_contract(&contract_id, || {
+            Swap::set_rate(env.clone(), owner.clone(), 30, 1)
+        });
+        assert!(result.is_ok());
+        assert_eq!(
+            env.as_contract(&contract_id, || Swap::rate(env.clone())),
+            (30, 1)
+        );
+    }
+
+    #[test]
+    fn set_rate_rejects_non_positive_parts() {
+        let (env, contract_id, owner, _stars_token, _treasury, _xlm_token, _tea_contract) =
+            env_with_init();
+
+        assert_eq!(
+            env.as_contract(&contract_id, || {
+                Swap::set_rate(env.clone(), owner.clone(), 0, 1)
+            }),
+            Err(SwapError::InvalidAmount)
+        );
+        assert_eq!(
+            env.as_contract(&contract_id, || {
+                Swap::set_rate(env.clone(), owner.clone(), 10, 0)
+            }),
+            Err(SwapError::InvalidAmount)
+        );
     }
 }
 
