@@ -4,7 +4,7 @@ import { toIpfsUri, type FlavorStats, type TeaColorway, type TeaMetadata } from 
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
-const hexToRgb = (hex: string) => {
+export const hexToRgb = (hex: string) => {
   const normalized = hex.startsWith("#") ? hex.slice(1) : hex;
   const bigint = Number.parseInt(normalized, 16);
   return {
@@ -14,12 +14,12 @@ const hexToRgb = (hex: string) => {
   };
 };
 
-const rgbToHex = ({ r, g, b }: { r: number; g: number; b: number }) =>
+export const rgbToHex = ({ r, g, b }: { r: number; g: number; b: number }) =>
   `#${[r, g, b]
     .map((value) => clamp(Math.round(value), 0, 255).toString(16).padStart(2, "0"))
     .join("")}`;
 
-const averageColors = (colors: string[]) => {
+export const averageColors = (colors: string[]) => {
   if (colors.length === 0) return "#ffffff";
   const totals = colors.reduce(
     (acc, color) => {
