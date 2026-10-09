@@ -21,8 +21,8 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+      - uses: actions/checkout@v7
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             ~/.cargo/bin/
@@ -40,7 +40,7 @@ jobs:
           network: local
       - run: sudo apt-get update && sudo apt-get install -y libudev-dev libdbus-1-dev pkg-config
       - name: Install cargo-binstall
-        uses: cargo-bins/cargo-binstall@v1.15.6
+        uses: cargo-bins/cargo-binstall@v1.25.2
       - name: Check for stellar-scaffold binary
         run: |
           if ! command -v stellar-scaffold &> /dev/null; then
@@ -64,6 +64,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Verify every workspace:* dependency resolves
         run: node .github/scripts/verify-workspace-deps.mjs
