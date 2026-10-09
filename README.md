@@ -443,17 +443,23 @@ stellar-tea/
 ### **Contract Tests**
 
 ```bash
-cargo test
+cargo test --workspace
 ```
+
+Rust unit tests live next to the modules they cover as `#[cfg(test)]` suites in
+`contracts/game/src/{mixing,marketplace,limits,events}.rs`,
+`contracts/nft-tea/src/lib.rs`, `contracts/swap/src/lib.rs` and
+`contracts/tokens/{balls,stars}/src/lib.rs`.
 
 ### **Frontend Tests**
 
 ```bash
-cd frontend
-npm test
+pnpm --filter frontend test    # runs `vitest run` from frontend/package.json
 ```
 
-Tests cover color blending, lineage math, and metadata helpers.
+Vitest collects `frontend/src/**/*.test.ts`: `frontend/src/lib/nft/fusion.test.ts`
+(color blending and lineage math), `frontend/src/lib/nft/schema.test.ts` (metadata
+helpers) and `frontend/src/lib/util/tokenMath.test.ts` (token amount parsing).
 
 ---
 
