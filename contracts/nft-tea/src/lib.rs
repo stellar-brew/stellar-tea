@@ -1,6 +1,7 @@
 #![no_std]
 
 pub mod admin;
+pub mod error;
 pub mod metadata;
 pub mod storage;
 pub mod tea;
@@ -16,6 +17,7 @@ mod tests {
     use soroban_sdk::{testutils::Address as _, Address, Env, String, Vec};
 
     use crate::contract::TeaNftContractClient;
+    use crate::error::Error;
     use crate::tea::{TeaMetadata, TeaStats};
     use crate::TeaNftContract;
 
@@ -65,5 +67,49 @@ mod tests {
         client.set_level(&operator, &token_id, &5);
         let updated = client.get_metadata(&token_id);
         assert_eq!(updated.level, 5);
+    }
+
+    #[test]
+    fn reading_metadata_for_an_unknown_token_returns_a_typed_error() {
+        let env = Env::default();
+        let admin = Address::generate(&env);
+        let client = init_client(&env, &admin);
+
+        assert!(matches!(
+            client.try_get_metadata(&999),
+            Err(Ok(Error::MetadataNotFound))
+        ));
+    }
+
+    #[test]
+    fn reading_metadata_after_burn_returns_a_typed_error() {
+        let env = Env::default();
+        env.mock_all_auths();
+
+        let admin = Address::generate(&env);
+        let owner = Address::generate(&env);
+        let client = init_client(&env, &admin);
+
+        let token_id = client.mint(&admin, &owner, &sample_metadata(&env));
+        client.burn_token(&admin, &owner, &token_id);
+
+        assert!(matches!(
+            client.try_get_metadata(&token_id),
+            Err(Ok(Error::MetadataNotFound))
+        ));
+    }
+
+    #[test]
+    fn updating_the_level_of_an_unknown_token_returns_a_typed_error() {
+        let env = Env::default();
+        env.mock_all_auths();
+
+        let admin = Address::generate(&env);
+        let client = init_client(&env, &admin);
+
+        assert!(matches!(
+            client.try_set_level(&admin, &999, &5),
+            Err(Ok(Error::MetadataNotFound))
+        ));
     }
 }
