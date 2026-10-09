@@ -1420,5 +1420,52 @@ mod decide_winner_tests {
             partner_wins,
             "partner must win for at least one seed (winner must not be hardcoded to owner_a)"
         );
+#[cfg(test)]
+mod split_fee_tests {
+    use super::*;
+
+    #[test]
+    fn zero_and_negative_totals_return_zero() {
+        assert_eq!(StellarTeaGame::split_fee(0), (0, 0));
+        assert_eq!(StellarTeaGame::split_fee(-1), (0, 0));
+        assert_eq!(StellarTeaGame::split_fee(-1_000_000), (0, 0));
+    }
+
+    #[test]
+    fn positive_totals_conserve_the_total_and_keep_the_80_20_shape() {
+        let totals: [i128; 11] = [
+            1,
+            2,
+            3,
+            4,
+            5,
+            99,
+            100,
+            101,
+            999,
+            1_000_000,
+            1_000_000_000_000_000,
+        ];
+        for total in totals {
+            let (loser, treasury) = StellarTeaGame::split_fee(total);
+            assert_eq!(
+                loser + treasury,
+                total,
+                "split_fee({total}) must not lose or create value"
+            );
+            assert!(loser >= 0, "loser share must not be negative");
+            assert!(treasury >= 0, "treasury share must not be negative");
+            // 80% of the fee (integer floor) goes to the loser; the rounding
+            // remainder is swept into the treasury share.
+            assert_eq!(loser, total * LOSER_COMPENSATION_PERCENT / 100);
+        }
+    }
+
+    #[test]
+    fn split_fee_101_routes_the_remainder_to_treasury() {
+        let (loser, treasury) = StellarTeaGame::split_fee(101);
+        assert_eq!(loser, 80);
+        assert_eq!(treasury, 21);
+        assert_eq!(loser + treasury, 101);
     }
 }
