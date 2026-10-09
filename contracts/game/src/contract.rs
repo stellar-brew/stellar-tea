@@ -36,8 +36,6 @@ pub struct Recipe {
     pub flavor_profile: String,
     pub base_level: u32,
     pub base_rarity: u32,
-    pub balls_cost: i128,
-    pub stars_cost: i128,
     pub base_stats: TeaStats,
     pub image_uri: String,
 }
@@ -275,8 +273,6 @@ impl StellarTeaGame {
         flavor_profile: String,
         base_level: u32,
         base_rarity: u32,
-        balls_cost: i128,
-        stars_cost: i128,
         base_stats: TeaStats,
         image_uri: String,
     ) -> Result<(), GameError> {
@@ -287,8 +283,6 @@ impl StellarTeaGame {
             flavor_profile,
             base_level,
             base_rarity,
-            balls_cost,
-            stars_cost,
             base_stats,
             image_uri,
         };

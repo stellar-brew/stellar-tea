@@ -170,7 +170,6 @@ export interface TeaMetadata {
   stats: TeaStats;
 }
 export interface Recipe {
-  balls_cost: i128;
   base_level: u32;
   base_rarity: u32;
   base_stats: TeaStats;
@@ -178,7 +177,6 @@ export interface Recipe {
   id: u32;
   image_uri: string;
   name: string;
-  stars_cost: i128;
 }
 export interface Client {
   /**
@@ -191,8 +189,6 @@ export interface Client {
       flavor_profile,
       base_level,
       base_rarity,
-      balls_cost,
-      stars_cost,
       base_stats,
       image_uri,
     }: {
@@ -201,8 +197,6 @@ export interface Client {
       flavor_profile: string;
       base_level: u32;
       base_rarity: u32;
-      balls_cost: i128;
-      stars_cost: i128;
       base_stats: TeaStats;
       image_uri: string;
     },
