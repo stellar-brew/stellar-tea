@@ -15,4 +15,5 @@ pub enum GameError {
     NotReady = 10,
     RarityCapped = 13,
     AlreadyJoined = 12,
+    BelowMinRank = 11,
 }
