@@ -9,10 +9,11 @@ use soroban_sdk::{
 #[derive(Clone)]
 pub enum DataKey {
     Config,
+    Rate,
 }
 
 #[contracttype]
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Config {
     pub owner: Address,
     pub stars_token: Address,
@@ -49,6 +50,8 @@ pub enum SwapError {
     NotInitialized = 2,
     InvalidAmount = 3,
     Unauthorized = 4,
+    RateMismatch = 5,
+    RateNotSet = 6,
 }
 
 #[contract]
@@ -111,6 +114,14 @@ impl Swap {
         initiator.require_auth();
 
         let config = Self::config(&env)?;
+        let rate = Self::rate(&env)?;
+        let expected_stars = xlm_amount
+            .checked_mul(rate)
+            .ok_or(SwapError::InvalidAmount)?;
+        if stars_amount != expected_stars {
+            return Err(SwapError::RateMismatch);
+        }
+
         let treasury = config.treasury.clone();
 
         let xlm_client = token::TokenClient::new(&env, &config.xlm_token);
@@ -222,11 +233,45 @@ impl Swap {
         Ok(())
     }
 
+    /// Configure the fixed STARS-per-XLM exchange rate enforced by `swap`.
+    ///
+    /// Only the configured `owner` may change the rate.
+    pub fn set_rate(env: Env, owner: Address, stars_per_xlm: i128) -> Result<(), SwapError> {
+        let storage = env.storage().instance();
+        let config = Self::config(&env)?;
+
+        if owner != config.owner {
+            return Err(SwapError::Unauthorized);
+        }
+        owner.require_auth();
+
+        if stars_per_xlm <= 0 {
+            return Err(SwapError::InvalidAmount);
+        }
+
+        storage.set(&DataKey::Rate, &stars_per_xlm);
+
+        env.events().publish(("swap_rate_updated",), stars_per_xlm);
+
+        Ok(())
+    }
+
+    pub fn get_rate(env: Env) -> Result<i128, SwapError> {
+        Self::rate(&env)
+    }
+
     fn config(env: &Env) -> Result<Config, SwapError> {
         let storage = env.storage().instance();
         storage
             .get(&DataKey::Config)
             .ok_or(SwapError::NotInitialized)
+    }
+
+    fn rate(env: &Env) -> Result<i128, SwapError> {
+        env.storage()
+            .instance()
+            .get(&DataKey::Rate)
+            .ok_or(SwapError::RateNotSet)
     }
 }
 
@@ -234,7 +279,7 @@ impl Swap {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use soroban_sdk::{testutils::Address as _, Address, Env, String, Vec};
+    use soroban_sdk::{testutils::Address as _, Address, Env};
 
     /// Helper: build a fresh Env with mock auth, then call init with the
     /// given owner + token addresses. Returns the (env, owner) tuple so
@@ -452,5 +497,118 @@ mod tests {
 
         let config = Swap::get_config(env.clone()).unwrap();
         assert_eq!(config.stars_token, new_stars_token);
+    }
+}
+
+
+#[cfg(test)]
+mod rate_tests {
+    use super::*;
+    use soroban_sdk::{contract, contractimpl, symbol_short, testutils::Address as _, token::TokenClient, Address, Env};
+
+    /// Minimal stand-in for a SEP-41 token: it records `mint` balances and
+    /// accepts transfers so the swap contract can be exercised end to end.
+    #[contract]
+    struct MockToken;
+
+    #[contractimpl]
+    impl MockToken {
+        pub fn mint(env: Env, to: Address, amount: i128) {
+            let key = (symbol_short!("bal"), to);
+            let current: i128 = env.storage().persistent().get(&key).unwrap_or(0);
+            env.storage().persistent().set(&key, &(current + amount));
+        }
+
+        pub fn balance(env: Env, id: Address) -> i128 {
+            env.storage()
+                .persistent()
+                .get(&(symbol_short!("bal"), id))
+                .unwrap_or(0)
+        }
+
+        pub fn transfer(_env: Env, _from: Address, _to: Address, _amount: i128) {}
+
+        pub fn transfer_from(
+            _env: Env,
+            _spender: Address,
+            _from: Address,
+            _to: Address,
+            _amount: i128,
+        ) {
+        }
+    }
+
+    /// Deploy a swap contract (with mocked tokens) and optionally set its rate.
+    fn deployed(env: &Env, rate: Option<i128>) -> (SwapClient<'_>, Address) {
+        let owner = Address::generate(env);
+        let treasury = Address::generate(env);
+        let xlm_token = env.register_contract(None, MockToken);
+        let stars_token = env.register_contract(None, MockToken);
+        let tea_contract = Address::generate(env);
+        let swap_id = env.register_contract(None, Swap);
+        let client = SwapClient::new(env, &swap_id);
+        client.init(&owner, &stars_token, &treasury, &xlm_token, &tea_contract);
+        if let Some(rate) = rate {
+            client.set_rate(&owner, &rate);
+        }
+        (client, stars_token)
+    }
+
+    #[test]
+    fn swap_mints_exactly_the_configured_rate() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let (client, stars_token) = deployed(&env, Some(2));
+        let initiator = Address::generate(&env);
+        let recipient = Address::generate(&env);
+
+        client.swap(&initiator, &recipient, &200i128, &100i128);
+
+        let stars = TokenClient::new(&env, &stars_token);
+        assert_eq!(stars.balance(&recipient), 200);
+    }
+
+    #[test]
+    fn swap_reverts_when_the_amount_does_not_match_the_rate() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let (client, _stars) = deployed(&env, Some(2));
+        let initiator = Address::generate(&env);
+        let recipient = Address::generate(&env);
+
+        let result = client.try_swap(&initiator, &recipient, &201i128, &100i128);
+        match result {
+            Err(Ok(SwapError::RateMismatch)) => {}
+            _ => panic!("expected RateMismatch"),
+        }
+    }
+
+    #[test]
+    fn swap_requires_a_configured_rate() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let (client, _stars) = deployed(&env, None);
+        let initiator = Address::generate(&env);
+        let recipient = Address::generate(&env);
+
+        let result = client.try_swap(&initiator, &recipient, &2i128, &1i128);
+        match result {
+            Err(Ok(SwapError::RateNotSet)) => {}
+            _ => panic!("expected RateNotSet"),
+        }
+    }
+
+    #[test]
+    fn set_rate_is_restricted_to_the_owner() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let (client, _stars) = deployed(&env, Some(2));
+        let non_owner = Address::generate(&env);
+
+        let result = client.try_set_rate(&non_owner, &3i128);
+        match result {
+            Err(Ok(SwapError::Unauthorized)) => {}
+            _ => panic!("expected Unauthorized"),
+        }
     }
 }
