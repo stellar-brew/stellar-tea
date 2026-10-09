@@ -512,47 +512,6 @@ impl StellarTeaGame {
         Ok(())
     }
 
-    pub fn mix_tea(
-        env: Env,
-        owner: Address,
-        recipe_id: u32,
-        balls: i128,
-        stars: Option<i128>,
-    ) -> Result<u64, GameError> {
-        let offer_id =
-            mixing::get_by_owner_recipe(&env, &owner, recipe_id).ok_or(GameError::OfferNotFound)?;
-        let offer = mixing::get(&env, offer_id)?;
-        if offer.status != OfferStatus::ReadyToMix {
-            return Err(GameError::NotReady);
-        }
-        if offer.recipe_id != recipe_id {
-            return Err(GameError::InvalidInput);
-        }
-        if offer.owner_a != owner {
-            return Err(GameError::Unauthorized);
-        }
-        let expected_balls = offer.fee_balls + offer.partner_fee_balls;
-        if expected_balls != balls {
-            return Err(GameError::InvalidInput);
-        }
-        let expected_stars = offer.fee_stars + offer.partner_fee_stars;
-        if expected_stars != stars.unwrap_or(0) {
-            return Err(GameError::InvalidInput);
-        }
-
-        let outcome = StellarTeaGame::resolve_mix(env.clone(), offer_id, offer)?;
-        env.events().publish(
-            ("mix_offer_completed",),
-            (
-                offer_id,
-                outcome.winner.clone(),
-                outcome.loser.clone(),
-                outcome.new_token_id,
-            ),
-        );
-        Ok(outcome.new_token_id)
-    }
-
     pub fn upgrade_tea(
         env: Env,
         owner: Address,
