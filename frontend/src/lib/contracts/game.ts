@@ -77,7 +77,7 @@ const rpcServer = new rpc.Server(rpcUrl, {
   allowHttp: rpcUrl.startsWith("http://"),
 });
 
-const resolvePaymentToken = (paymentToken: PaymentToken) => {
+export const resolvePaymentToken = (paymentToken: PaymentToken) => {
   if (paymentToken.tag === "Balls") return "BALLS" as const;
   return "STARS" as const;
 };
@@ -91,7 +91,7 @@ export type OnChainListing = {
 
 const LISTING_SYMBOL = "Listing";
 
-const isMissingEntryError = (error: unknown) => {
+export const isMissingEntryError = (error: unknown) => {
   if (!error) return false;
 
   if (typeof error === "object") {
@@ -126,7 +126,7 @@ const isMissingEntryError = (error: unknown) => {
   return false;
 };
 
-const fetchListingFromStorage = async (
+export const fetchListingFromStorage = async (
   contractId: string,
   tokenId: number,
 ): Promise<OnChainListing | null> => {
