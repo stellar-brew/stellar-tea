@@ -299,7 +299,7 @@ src/
 #### 1. Clone and Initialize
 
 ```bash
-git clone https://github.com/foundermafstat/stellar-tea.git
+git clone https://github.com/stellar-brew/stellar-tea.git
 cd stellar-tea
 ```
 
