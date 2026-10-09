@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, useTransition } from "react";
 
 import { Button } from "@/components/ui/button";
 import { TeaCard } from "@/components/nft/tea-card";
+import { toast } from "@/components/ui/use-toast";
 import { useWallet } from "@/lib/hooks/useWallet";
 import {
   type OwnedTeaToken,
@@ -187,8 +188,18 @@ export default function ProfilePage() {
                       imageUri: token.offchainMetadata?.image ?? token.metadata?.image_uri ?? token.tokenUri,
                       tokenUri: token.tokenUri,
                     }}
-                    onList={() => console.log("List for sale", token.tokenId)}
-                    onMix={() => console.log("Send for fusion", token.tokenId)}
+                    onList={() =>
+                      toast({
+                        title: "Listing coming soon",
+                        description: `Listing tea #${token.tokenId} for sale is not available yet.`,
+                      })
+                    }
+                    onMix={() =>
+                      toast({
+                        title: "Fusion coming soon",
+                        description: `Sending tea #${token.tokenId} for fusion is not available yet.`,
+                      })
+                    }
                   />
                 ))}
               </div>
