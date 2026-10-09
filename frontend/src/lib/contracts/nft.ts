@@ -71,6 +71,19 @@ export const createTeaNftClient = ({ publicKey, signer }: CreateClientParams = {
 
 export const getTeaContractId = () => resolveContractId();
 
+/**
+ * Destination for the 150 STARS mint fee.
+ *
+ * Operators can point the fee at a dedicated treasury with
+ * NEXT_PUBLIC_TEA_MINT_FEE_DESTINATION. When unset it defaults to the tea NFT
+ * contract, which exposes an admin-guarded `sweep` entrypoint so the held
+ * STARS can be recovered instead of being stranded.
+ */
+export const getMintFeeDestination = (): string => {
+  const configured = process.env.NEXT_PUBLIC_TEA_MINT_FEE_DESTINATION?.trim();
+  return configured && configured.length > 0 ? configured : getTeaContractId();
+};
+
 export type OwnedTeaToken = {
   tokenId: number;
   metadata: ChainTeaMetadata;

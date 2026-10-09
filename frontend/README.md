@@ -21,6 +21,10 @@ Create `.env.local` in `frontend/` with:
 NEXT_PUBLIC_IPFS_API_KEY=<Filebase basic token, e.g. MTJ...>
 NEXT_PUBLIC_IPFS_API_ENDPOINT=https://ipfs.filebase.io/api/v1   # optional override
 NEXT_PUBLIC_IPFS_GATEWAY_URL=https://ipfs.filebase.io           # optional override
+
+# Mint fee destination (optional; defaults to the tea NFT contract, whose admin
+# can recover held STARS through the contract's `sweep` entrypoint)
+NEXT_PUBLIC_TEA_MINT_FEE_DESTINATION=<treasury or fee address>
 ```
 
 ## Commands
@@ -36,7 +40,8 @@ pnpm test      # vitest unit tests for fusion helpers
 1. Place PNG/SVG layers under `public/nft/generate` (already bundled in the repo).
 2. Press the single mint button on `/mint`:
    - the app randomly samples layers + flavour swatch
-   - pays **150 STARS** to the tea contract
+   - pays **150 STARS** to the configured fee destination (the tea contract by
+     default, whose admin can recover it with `sweep`)
    - renders a 485×1000 PNG in the browser
    - uploads PNG + metadata JSON to Filebase IPFS
    - signs the Soroban mint transaction (`tea-nft`)

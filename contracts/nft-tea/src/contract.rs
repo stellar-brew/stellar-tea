@@ -1,4 +1,4 @@
-use soroban_sdk::{contract, contractimpl, Address, Env, String, Vec};
+use soroban_sdk::{contract, contractimpl, token, Address, Env, String, Vec};
 use stellar_macros::default_impl;
 use stellar_tokens::non_fungible::{
     burnable::NonFungibleBurnable,
@@ -120,6 +120,21 @@ impl TeaNftContract {
         Base::burn(&env, &owner, as_nft_id(token_id));
         storage::remove_metadata(&env, token_id);
         env.events().publish(("tea_burned",), (owner, token_id));
+    }
+
+    /// Admin-guarded rescue for tokens held by this contract.
+    ///
+    /// The STARS mint fee is transferred to this contract before minting, so
+    /// without a sweep the accumulated balance would be unrecoverable. The
+    /// admin may move any token held here to a destination of their choosing.
+    pub fn sweep(env: Env, token: Address, to: Address, amount: i128) {
+        admin::require_admin(&env);
+        if amount <= 0 {
+            panic!("sweep amount must be positive");
+        }
+        let token_client = token::TokenClient::new(&env, &token);
+        token_client.transfer(&env.current_contract_address(), &to, &amount);
+        env.events().publish(("swept",), (token, to, amount));
     }
 }
 
