@@ -71,3 +71,86 @@ pub fn daily_cap(env: &Env) -> Option<i128> {
         .instance()
         .get::<DataKey, i128>(&DataKey::DailyEmissionCap)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use soroban_sdk::{contract, testutils::Address as _, Address, Env};
+
+    #[contract]
+    struct Dummy;
+
+    fn setup() -> (Env, Address) {
+        let env = Env::default();
+        env.mock_all_auths();
+        let contract_id = env.register_contract(None, Dummy);
+        (env, contract_id)
+    }
+
+    fn addresses(env: &Env) -> (Address, Address, Address, Address, Address) {
+        (
+            Address::generate(env),
+            Address::generate(env),
+            Address::generate(env),
+            Address::generate(env),
+            Address::generate(env),
+        )
+    }
+
+    #[test]
+    fn init_stores_the_full_config() {
+        let (env, contract_id) = setup();
+        let (admin, treasury, balls, stars, nft) = addresses(&env);
+        env.as_contract(&contract_id, || {
+            init(&env, &admin, &treasury, &balls, &stars, &nft, &None);
+            let config = get(&env);
+            assert_eq!(config.admin, admin);
+            assert_eq!(config.treasury, treasury);
+            assert_eq!(config.balls_token, balls);
+            assert_eq!(config.stars_token, stars);
+            assert_eq!(config.tea_nft, nft);
+            assert_eq!(config.dex, None);
+        });
+    }
+
+    #[test]
+    fn require_admin_returns_the_configured_admin() {
+        let (env, contract_id) = setup();
+        let (admin, treasury, balls, stars, nft) = addresses(&env);
+        env.as_contract(&contract_id, || {
+            init(&env, &admin, &treasury, &balls, &stars, &nft, &None);
+            // require_auth is satisfied by mock_all_auths; the returned address
+            // must be the configured admin.
+            assert_eq!(require_admin(&env), admin);
+        });
+    }
+
+    #[test]
+    fn daily_cap_is_none_before_set_and_round_trips() {
+        let (env, contract_id) = setup();
+        let (admin, treasury, balls, stars, nft) = addresses(&env);
+        env.as_contract(&contract_id, || {
+            init(&env, &admin, &treasury, &balls, &stars, &nft, &None);
+            assert_eq!(daily_cap(&env), None);
+            set_daily_cap(&env, 5_000_000);
+            assert_eq!(daily_cap(&env), Some(5_000_000));
+        });
+    }
+
+    #[test]
+    fn update_treasury_leaves_every_other_field_untouched() {
+        let (env, contract_id) = setup();
+        let (admin, treasury, balls, stars, nft) = addresses(&env);
+        let new_treasury = Address::generate(&env);
+        env.as_contract(&contract_id, || {
+            init(&env, &admin, &treasury, &balls, &stars, &nft, &None);
+            update_treasury(&env, new_treasury.clone());
+            let config = get(&env);
+            assert_eq!(config.treasury, new_treasury);
+            assert_eq!(config.admin, admin);
+            assert_eq!(config.balls_token, balls);
+            assert_eq!(config.stars_token, stars);
+            assert_eq!(config.tea_nft, nft);
+        });
+    }
+}
