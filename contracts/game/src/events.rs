@@ -2,7 +2,7 @@ use soroban_sdk::{contracttype, Address, Env, Vec};
 
 use crate::errors::GameError;
 
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 #[contracttype]
 pub struct Event {
     pub organizer: Address,
