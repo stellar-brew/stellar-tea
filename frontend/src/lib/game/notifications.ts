@@ -16,6 +16,10 @@ export type GameNotificationPayload = {
   dismissible?: boolean;
 };
 
+export const emitGameNotification = (payload: GameNotificationPayload) => {
+  listeners.forEach((listener) => listener(payload));
+};
+
 export const subscribe = (listener: Listener) => {
   listeners.add(listener);
   return () => listeners.delete(listener);
