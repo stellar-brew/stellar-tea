@@ -1,6 +1,9 @@
 "use client";
 
-import { Client as ContractClient } from "@stellar/stellar-sdk/contract";
+import {
+  Client as StarsContractClient,
+  networks as starsNetworks,
+} from "stars-token-client";
 import type { SignTransaction as SorobanSignTransaction } from "@stellar/stellar-sdk/contract";
 
 import { networkPassphrase, rpcUrl, stellarNetwork } from "@/lib/stellarConfig";
@@ -10,9 +13,10 @@ import { parseAmountToI128 } from "@/lib/util/tokenMath";
 type WalletSigner = SorobanSignTransaction;
 export type StarsWalletSigner = WalletSigner;
 
-const NETWORK_DEFAULT_CONTRACT: Partial<Record<typeof stellarNetwork, string>> = {
-  TESTNET: "CCSMRVZW77HXGDBVXUTDAM5MOH4AX6DS2O7CWY3TEVAUHGJFEYN7LWJP",
-};
+const NETWORK_DEFAULT_CONTRACT: Partial<Record<typeof stellarNetwork, string>> =
+  {
+    TESTNET: starsNetworks.testnet.contractId,
+  };
 
 const resolveContractId = () => {
   const fromEnv = process.env.NEXT_PUBLIC_STARS_CONTRACT_ID;
@@ -34,15 +38,14 @@ type CreateClientParams = {
   signer?: WalletSigner;
 };
 
-let cachedReadOnlyClient: Promise<ContractClient> | null = null;
+let cachedReadOnlyClient: Promise<StarsContractClient> | null = null;
 
 const buildClient = async ({
   publicKey,
   signer,
-}: CreateClientParams = {}): Promise<ContractClient> => {
-  const contractId = resolveContractId();
-  return ContractClient.from({
-    contractId,
+}: CreateClientParams = {}): Promise<StarsContractClient> => {
+  return new StarsContractClient({
+    contractId: resolveContractId(),
     networkPassphrase,
     rpcUrl,
     allowHttp: rpcUrl.startsWith("http://"),
@@ -65,10 +68,14 @@ export const createStarsClient = async (params: CreateClientParams = {}) => {
   return cachedReadOnlyClient;
 };
 
-export const fetchStarsMetadata = async () => {
+export const fetchStarsMetadata = async (): Promise<{
+  decimals: number;
+  name: string;
+  symbol: string;
+}> => {
   const client = await createStarsClient();
   const { result } = await client.metadata();
-  const [decimals, name, symbol] = result ?? [7, "Stars", "STARS"];
+  const [decimals, name, symbol] = result ?? ([7, "Stars", "STARS"] as const);
 
   return {
     decimals: Number(decimals),
@@ -121,9 +128,11 @@ export const payStarsFee = async ({
   } catch (error) {
     throw new Error(
       error instanceof Error
-        ? extractSorobanErrorMessage(error, "Failed to transfer STARS for minting.")
+        ? extractSorobanErrorMessage(
+            error,
+            "Failed to transfer STARS for minting.",
+          )
         : "Failed to transfer STARS for minting.",
     );
   }
 };
-
