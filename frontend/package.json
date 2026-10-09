@@ -22,7 +22,7 @@
     "balls-token-client": "workspace:*",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
-    "ipfs-http-client": "^60.0.1",
+    "kubo-rpc-client": "^7.1.0",
     "lucide-react": "^0.553.0",
     "next": "16.0.1",
     "react": "19.2.0",
