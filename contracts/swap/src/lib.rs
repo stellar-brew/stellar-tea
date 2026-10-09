@@ -64,6 +64,24 @@ pub struct Swap;
 
 #[contractimpl]
 impl Swap {
+    /// Deploy-time initialisation.
+    ///
+    /// Soroban runs `__constructor` as part of deploying the contract, so the
+    /// configuration (and therefore `owner`) is written before any external
+    /// caller can reach the contract. That closes the window in which an
+    /// arbitrary first caller could have claimed ownership through `init`.
+    pub fn __constructor(
+        env: Env,
+        owner: Address,
+        stars_token: Address,
+        treasury: Address,
+        xlm_token: Address,
+        tea_contract: Address,
+    ) {
+        Self::init(env, owner, stars_token, treasury, xlm_token, tea_contract)
+            .expect("swap init");
+    }
+
     pub fn init(
         env: Env,
         owner: Address,
@@ -770,6 +788,54 @@ mod mint_gate_tests {
         match result {
             Err(Ok(SwapError::Unauthorized)) => {}
             _ => panic!("expected Unauthorized"),
+        }
+    }
+}
+
+
+#[cfg(test)]
+mod init_guard_tests {
+    use super::*;
+    use soroban_sdk::{testutils::Address as _, Address, Env};
+
+    #[test]
+    fn constructor_seeds_ownership_and_closes_first_caller_init() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let owner = Address::generate(&env);
+        let stars_token = Address::generate(&env);
+        let treasury = Address::generate(&env);
+        let xlm_token = Address::generate(&env);
+        let tea_contract = Address::generate(&env);
+
+        let swap_id = env.register(
+            Swap,
+            (
+                owner.clone(),
+                stars_token.clone(),
+                treasury.clone(),
+                xlm_token.clone(),
+                tea_contract.clone(),
+            ),
+        );
+        let client = SwapClient::new(&env, &swap_id);
+
+        let config = client.get_config();
+        assert_eq!(config.owner, owner);
+
+        // `config` is already populated at deploy time, so an arbitrary caller
+        // can no longer capture ownership through `init`.
+        let attacker = Address::generate(&env);
+        let result = client.try_init(
+            &attacker,
+            &stars_token,
+            &treasury,
+            &xlm_token,
+            &tea_contract,
+        );
+        match result {
+            Err(Ok(SwapError::AlreadyInitialized)) => {}
+            _ => panic!("expected AlreadyInitialized"),
         }
     }
 }
