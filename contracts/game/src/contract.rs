@@ -312,6 +312,17 @@ impl StellarTeaGame {
         Ok(())
     }
 
+    /// Admin-only: set the total reward that may be emitted per day across all
+    /// players. `claim_daily` rejects a claim that would exceed it.
+    pub fn set_daily_cap(env: Env, amount: i128) -> Result<(), GameError> {
+        if amount <= 0 {
+            return Err(GameError::InvalidInput);
+        }
+        config::set_daily_cap(&env, amount);
+        env.events().publish(("daily_cap_set",), (amount,));
+        Ok(())
+    }
+
     pub fn burn_tokens(
         env: Env,
         from: Address,
@@ -718,12 +729,15 @@ impl StellarTeaGame {
 
         let cfg = config::get(&env);
         let limit_symbol = symbol_short!("daily");
-        limits::consume(&env, &player, &limit_symbol, 1)?;
 
+        let reward_total = DAILY_BALLS_REWARD + DAILY_STARS_REWARD;
         let daily_cap = config::daily_cap(&env).unwrap_or(i128::MAX);
-        if DAILY_BALLS_REWARD > daily_cap {
+        if config::emitted_today(&env) + reward_total > daily_cap {
             return Err(GameError::LimitExceeded);
         }
+
+        limits::consume(&env, &player, &limit_symbol, 1)?;
+        config::record_emission(&env, reward_total);
 
         util::mint(&env, &cfg.balls_token, &player, DAILY_BALLS_REWARD);
         util::mint(&env, &cfg.stars_token, &player, DAILY_STARS_REWARD);
@@ -856,6 +870,7 @@ impl StellarTeaGame {
 
 #[cfg(test)]
 mod finish_event_auth_tests {
+mod daily_cap_tests {
     extern crate std;
 
     use super::*;
@@ -1091,5 +1106,34 @@ mod winner_entropy_tests {
         });
 
         assert!(owner_a_wins && owner_b_wins);
+    fn daily_cap_is_admin_configurable_and_includes_the_stars_reward() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let (client, _admin, balls, stars, _nft, _id) = deploy_game(&env);
+        let player = Address::generate(&env);
+
+        // The cap is admin-authorised: with no mocked auths the admin's
+        // signature is missing, so the call must fail.
+        env.mock_auths(&[]);
+        assert!(client.try_set_daily_cap(&2_000_000i128).is_err());
+        env.mock_all_auths();
+
+        // A cap below the combined daily reward blocks the claim.
+        client.set_daily_cap(&1_000i128);
+        let blocked = client.try_claim_daily(&player);
+        match blocked {
+            Err(Ok(GameError::LimitExceeded)) => {}
+            _ => panic!("expected LimitExceeded"),
+        }
+
+        // Raising the cap above the combined reward lets the claim through and
+        // both tokens are minted.
+        client.set_daily_cap(&3_000_000i128);
+        client.claim_daily(&player);
+
+        let balls_client = soroban_sdk::token::TokenClient::new(&env, &balls);
+        let stars_client = soroban_sdk::token::TokenClient::new(&env, &stars);
+        assert_eq!(balls_client.balance(&player), DAILY_BALLS_REWARD);
+        assert_eq!(stars_client.balance(&player), DAILY_STARS_REWARD);
     }
 }
