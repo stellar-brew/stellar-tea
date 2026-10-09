@@ -17,6 +17,9 @@ const BURN_FEE_BPS: i128 = 200; // 2% burn from marketplace fees
 const LOSER_COMPENSATION_PERCENT: i128 = 80;
 const TREASURY_REWARD_PERCENT: i128 = 20;
 const UPGRADE_LEVEL_INCREMENT: u32 = 1;
+/// Highest rarity tier a tea can reach. The frontend rarity mapping and the
+/// recipe catalogue use tiers 1 through 5, so upgrades stop at this tier.
+const MAX_TEA_RARITY: u32 = 5;
 const DAILY_BALLS_REWARD: i128 = 2_000_000; // 0.02 with 8 decimals
 const DAILY_STARS_REWARD: i128 = 200_000; // 0.002 with 8 decimals
 
@@ -74,6 +77,8 @@ fn compose_metadata(env: &Env, recipe: &Recipe, offer: &MixOffer) -> TeaMetadata
         display_name: recipe.name.clone(),
         flavor_profile: recipe.flavor_profile.clone(),
         rarity: recipe.base_rarity,
+        flavor_profile: offer.desired_profile.clone(),
+        rarity: recipe.base_rarity.min(MAX_TEA_RARITY),
         level: recipe.base_level,
         infusion: String::from_str(env, "fusion"),
         stats: recipe.base_stats.clone(),
@@ -593,7 +598,10 @@ impl StellarTeaGame {
         );
 
         let mut metadata = util::get_tea_metadata(&env, &cfg.tea_nft, nft_id);
-        metadata.level += UPGRADE_LEVEL_INCREMENT;
+        if metadata.rarity >= MAX_TEA_RARITY {
+            return Err(GameError::RarityCapped);
+        }
+        metadata.level = metadata.level.saturating_add(UPGRADE_LEVEL_INCREMENT);
         metadata.rarity += 1;
         metadata.stats.body += 5;
         metadata.stats.caffeine += 3;
@@ -871,6 +879,7 @@ impl StellarTeaGame {
 #[cfg(test)]
 mod finish_event_auth_tests {
 mod daily_cap_tests {
+mod upgrade_rarity_cap_tests {
     extern crate std;
 
     use super::*;
@@ -1169,5 +1178,36 @@ mod winner_entropy_tests {
         assert_eq!(metadata.rarity, recipe.base_rarity);
         assert_eq!(metadata.level, recipe.base_level);
         assert_eq!(metadata.lineage.len(), 2);
+    fn upgrade_tea_rejects_an_upgrade_at_the_rarity_cap() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let (client, _admin, _balls, _stars, nft, _id) = deploy_game(&env);
+        let nft_client = MockNftClient::new(&env, &nft);
+
+        let owner = Address::generate(&env);
+        let token_id = nft_client.mint(&owner, &owner, &tea_metadata(&env, MAX_TEA_RARITY, 1));
+
+        let result = client.try_upgrade_tea(&owner, &token_id, &100i128, &100i128);
+        match result {
+            Err(Ok(GameError::RarityCapped)) => {}
+            _ => panic!("expected RarityCapped"),
+        }
+    }
+
+    #[test]
+    fn upgrade_tea_increments_rarity_below_the_cap() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let (client, _admin, _balls, _stars, nft, _id) = deploy_game(&env);
+        let nft_client = MockNftClient::new(&env, &nft);
+
+        let owner = Address::generate(&env);
+        let token_id = nft_client.mint(&owner, &owner, &tea_metadata(&env, 1, 1));
+
+        client.upgrade_tea(&owner, &token_id, &100i128, &100i128);
+
+        let metadata = nft_client.get_metadata(&token_id);
+        assert_eq!(metadata.rarity, 2);
+        assert!(metadata.rarity <= MAX_TEA_RARITY);
     }
 }
