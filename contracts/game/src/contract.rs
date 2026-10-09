@@ -448,6 +448,11 @@ impl StellarTeaGame {
             return Err(GameError::InvalidInput);
         }
 
+        let partner_metadata = util::get_tea_metadata(&env, &cfg.tea_nft, token_b_id);
+        if partner_metadata.rarity < offer.min_rank {
+            return Err(GameError::BelowMinRank);
+        }
+
         util::transfer_tea(
             &env,
             &cfg.tea_nft,
@@ -892,6 +897,7 @@ mod daily_cap_tests {
 mod upgrade_rarity_cap_tests {
 mod upgrade_single_token_tests {
 mod join_event_tests {
+mod min_rank_tests {
     extern crate std;
 
     use super::*;
@@ -1208,6 +1214,48 @@ mod winner_entropy_tests {
         match result {
             Err(Ok(GameError::RarityCapped)) => {}
             _ => panic!("expected RarityCapped"),
+    fn accept_mix_offer_rejects_a_partner_below_min_rank() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let (client, _admin, _balls, _stars, nft, _id) = deploy_game(&env);
+        let nft_client = MockNftClient::new(&env, &nft);
+
+        let owner_a = Address::generate(&env);
+        let partner = Address::generate(&env);
+        client.upsert_recipe(
+            &1u32,
+            &String::from_str(&env, "Fusion"),
+            &String::from_str(&env, "jasmine"),
+            &2u32,
+            &3u32,
+            &0i128,
+            &0i128,
+            &TeaStats {
+                sweetness: 1,
+                body: 2,
+                caffeine: 3,
+            },
+            &String::from_str(&env, "ipfs://recipe"),
+        );
+
+        let token_a = nft_client.mint(&owner_a, &owner_a, &tea_metadata(&env, 3, 1));
+        let token_b = nft_client.mint(&partner, &partner, &tea_metadata(&env, 1, 1));
+
+        let offer_id = client.create_mix_offer(
+            &owner_a,
+            &1u32,
+            &token_a,
+            &String::from_str(&env, "citrus"),
+            &3u32,
+            &1i128,
+            &0i128,
+            &(env.ledger().timestamp() + 1_000),
+        );
+
+        let result = client.try_accept_mix_offer(&offer_id, &partner, &token_b, &1i128, &0i128);
+        match result {
+            Err(Ok(GameError::BelowMinRank)) => {}
+            _ => panic!("expected BelowMinRank"),
         }
     }
 
@@ -1227,6 +1275,7 @@ mod winner_entropy_tests {
 
     #[test]
     fn upgrade_tea_rejects_an_empty_payment() {
+    fn accept_mix_offer_accepts_a_partner_at_or_above_min_rank() {
         let env = Env::default();
         env.mock_all_auths();
         let (client, _admin, _balls, _stars, nft, _id) = deploy_game(&env);
@@ -1258,5 +1307,39 @@ mod winner_entropy_tests {
             crate::events::get(&env, 1).unwrap().participants.len()
         });
         assert_eq!(participants, 1);
+        let owner_a = Address::generate(&env);
+        let partner = Address::generate(&env);
+        client.upsert_recipe(
+            &1u32,
+            &String::from_str(&env, "Fusion"),
+            &String::from_str(&env, "jasmine"),
+            &2u32,
+            &3u32,
+            &0i128,
+            &0i128,
+            &TeaStats {
+                sweetness: 1,
+                body: 2,
+                caffeine: 3,
+            },
+            &String::from_str(&env, "ipfs://recipe"),
+        );
+
+        let token_a = nft_client.mint(&owner_a, &owner_a, &tea_metadata(&env, 3, 1));
+        let token_b = nft_client.mint(&partner, &partner, &tea_metadata(&env, 4, 1));
+
+        let offer_id = client.create_mix_offer(
+            &owner_a,
+            &1u32,
+            &token_a,
+            &String::from_str(&env, "citrus"),
+            &3u32,
+            &1i128,
+            &0i128,
+            &(env.ledger().timestamp() + 1_000),
+        );
+
+        let new_token_id = client.accept_mix_offer(&offer_id, &partner, &token_b, &1i128, &0i128);
+        assert!(new_token_id > 0);
     }
 }
