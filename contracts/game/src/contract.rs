@@ -89,6 +89,14 @@ impl mixing::BeverageMixer for StellarTeaGame {
         token_b_id: u64,
     ) -> Result<(Address, Address), GameError> {
         let partner = offer.owner_b.clone().ok_or(GameError::NotReady)?;
+        // Randomness note: the winner is derived from a hash that includes a value
+        // drawn from the network-seeded PRNG (`env.prng`). That seed comes from the
+        // transaction-set hash and this transaction's hash-sorted position within
+        // it, so neither player knows it when they build or simulate the accept
+        // transaction and it cannot be ground by picking a favourable ledger
+        // timestamp. The public offer identifiers are still mixed in so the
+        // outcome is bound to this specific offer.
+        let entropy: u64 = env.prng().gen();
         let payload = (
             env.ledger().timestamp(),
             offer.owner_a.clone(),
@@ -96,6 +104,7 @@ impl mixing::BeverageMixer for StellarTeaGame {
             offer.token_a_id,
             token_b_id,
             offer.recipe_id,
+            entropy,
         )
             .to_xdr(env);
         let seed = env.crypto().sha256(&payload);
@@ -1023,5 +1032,64 @@ mod finish_event_auth_tests {
 
         // The organiser is still allowed to finish the event.
         client.finish_event(&organizer, &1u32);
+mod winner_entropy_tests {
+    extern crate std;
+
+    use super::*;
+    use crate::mixing::{MixOffer, OfferStatus};
+    use soroban_sdk::{testutils::Address as _, Address, Bytes, Env, String};
+
+    #[test]
+    fn decide_winner_varies_with_the_unpredictable_entropy_source() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let game = env.register(
+            StellarTeaGame,
+            (
+                Address::generate(&env),
+                Address::generate(&env),
+                Address::generate(&env),
+                Address::generate(&env),
+                Address::generate(&env),
+                None::<Address>,
+            ),
+        );
+
+        let owner_a = Address::generate(&env);
+        let owner_b = Address::generate(&env);
+        let offer = MixOffer {
+            owner_a: owner_a.clone(),
+            token_a_id: 1,
+            owner_b: Some(owner_b.clone()),
+            token_b_id: Some(2),
+            desired_profile: String::from_str(&env, "citrus"),
+            min_rank: 1,
+            recipe_id: 1,
+            fee_balls: 0,
+            fee_stars: 0,
+            partner_fee_balls: 0,
+            partner_fee_stars: 0,
+            status: OfferStatus::WaitingForPartner,
+            created_at: 0,
+            deadline: 1_000,
+        };
+
+        let mut owner_a_wins = false;
+        let mut owner_b_wins = false;
+        env.as_contract(&game, || {
+            for i in 0u8..16u8 {
+                let mut seed = [0u8; 32];
+                seed[0] = i;
+                env.prng().seed(Bytes::from_array(&env, &seed));
+                let (winner, _loser) = StellarTeaGame::decide_winner(&env, &offer, 2).unwrap();
+                if winner == owner_a {
+                    owner_a_wins = true;
+                } else {
+                    owner_b_wins = true;
+                }
+            }
+        });
+
+        assert!(owner_a_wins && owner_b_wins);
     }
 }
