@@ -11,6 +11,9 @@ import { networkPassphrase, rpcUrl, stellarNetwork } from "@/lib/stellarConfig";
 type WalletSigner = SorobanSignTransaction;
 export type BallsWalletSigner = WalletSigner;
 
+/** BALLS metadata decimals, matching contracts/tokens/balls/src/metadata.rs. */
+export const BALLS_DECIMALS = 8;
+
 const NETWORK_DEFAULT_CONTRACT: Partial<Record<typeof stellarNetwork, string>> = {
   TESTNET: ballsNetworks.testnet.contractId,
 };
@@ -70,7 +73,7 @@ export const createBallsClient = ({ publicKey, signer }: CreateClientParams = {}
 export const fetchBallsMetadata = async () => {
   const client = createBallsClient();
   const metadataTx = await client.metadata();
-  const [decimals, name, symbol] = metadataTx.result ?? [7, "Balls", "BALLS"];
+  const [decimals, name, symbol] = metadataTx.result ?? [BALLS_DECIMALS, "Balls", "BALLS"];
 
   return {
     decimals: Number(decimals),

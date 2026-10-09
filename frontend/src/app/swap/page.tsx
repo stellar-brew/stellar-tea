@@ -30,7 +30,7 @@ export default function SwapPage() {
   const [xlmAmount, setXlmAmount] = useState("10");
   const [isConfirming, setIsConfirming] = useState(false);
   const [tokenMeta, setTokenMeta] = useState({
-    decimals: 7,
+    decimals: 8,
     name: "Stars",
     symbol: "STARS",
   });

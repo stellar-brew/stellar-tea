@@ -17,7 +17,7 @@ type State = {
 const INITIAL_STATE: State = {
   raw: BigInt(0),
   formatted: "0",
-  decimals: 7,
+  decimals: 8,
   isLoading: false,
   error: null,
 };
