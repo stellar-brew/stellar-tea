@@ -14,4 +14,5 @@ pub enum GameError {
     Expired = 9,
     NotReady = 10,
     RarityCapped = 13,
+    AlreadyJoined = 12,
 }
