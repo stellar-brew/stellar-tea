@@ -18,6 +18,7 @@ mod tests {
 
     use crate::contract::TeaNftContractClient;
     use crate::error::Error;
+    use crate::metadata;
     use crate::tea::{TeaMetadata, TeaStats};
     use crate::TeaNftContract;
 
@@ -86,6 +87,7 @@ mod tests {
     fn admin_can_sweep_tokens_sent_to_the_contract() {
         use soroban_sdk::token;
 
+    fn constructor_without_base_uri_reports_defaults() {
         let env = Env::default();
         env.mock_all_auths();
 
@@ -104,6 +106,21 @@ mod tests {
 
     #[test]
     fn updating_the_level_of_an_unknown_token_returns_a_typed_error() {
+        let client = init_client(&env, &admin);
+
+        assert_eq!(client.name(), String::from_str(&env, metadata::NAME));
+        assert_eq!(client.symbol(), String::from_str(&env, metadata::SYMBOL));
+
+        let token_id = client.mint(&admin, &admin, &sample_metadata(&env));
+        let expected = std::format!("{}{}", metadata::DEFAULT_BASE_URI, token_id);
+        assert_eq!(
+            client.token_uri(&(token_id as u32)),
+            String::from_str(&env, &expected)
+        );
+    }
+
+    #[test]
+    fn constructor_with_explicit_base_uri_reports_it() {
         let env = Env::default();
         env.mock_all_auths();
 
@@ -127,5 +144,18 @@ mod tests {
         let token_client = token::TokenClient::new(&env, &asset_address);
         assert_eq!(token_client.balance(&contract_id), 600);
         assert_eq!(token_client.balance(&recipient), 400);
+        let base_uri = String::from_str(&env, "ipfs://custom-tea/");
+        let contract_id = env.register(TeaNftContract, (admin.clone(), Some(base_uri.clone())));
+        let client = TeaNftContractClient::new(&env, &contract_id);
+
+        assert_eq!(client.name(), String::from_str(&env, metadata::NAME));
+        assert_eq!(client.symbol(), String::from_str(&env, metadata::SYMBOL));
+
+        let token_id = client.mint(&admin, &admin, &sample_metadata(&env));
+        let expected = std::format!("ipfs://custom-tea/{}", token_id);
+        assert_eq!(
+            client.token_uri(&(token_id as u32)),
+            String::from_str(&env, &expected)
+        );
     }
 }
