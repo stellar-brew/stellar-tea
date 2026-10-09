@@ -4,7 +4,6 @@ use soroban_sdk::{Address, Env};
 use stellar_tokens::fungible::Base;
 
 pub fn approve(env: &Env, from: Address, spender: Address, amount: i128, expiration_ledger: i128) {
-    from.require_auth();
     let expiration =
         u32::try_from(expiration_ledger).expect("expiration ledger must be a non-negative u32");
     Base::approve(env, &from, &spender, amount, expiration);
