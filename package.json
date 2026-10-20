@@ -6,9 +6,10 @@
   "private": true,
   "scripts": {
     "install:contracts": "pnpm --filter \"./packages/*\" install && pnpm --filter \"./packages/*\" run --if-present build",
-    "lint": "pnpm --filter frontend run lint",
-    "test": "pnpm --filter frontend run test",
-    "build": "pnpm --filter \"./packages/*\" run --if-present build && pnpm --filter frontend run build",
+    "lint": "pnpm --filter frontend lint",
+    "test": "pnpm --filter frontend test",
+    "build": "pnpm --filter \"./packages/*\" run --if-present build && pnpm --filter frontend build",
+    "dev": "pnpm --filter frontend dev",
     "format": "prettier . --write"
   },
   "dependencies": {},
